@@ -1001,3 +1001,278 @@ BEGIN
 	dbms_output.put_line('SQL VARCHAR2 길이 : ' || lengthb(vs_sql_varchar2));
 	dbms_output.put_line('PL/SQL VARCHAR2 길이 : ' || lengthb(vs_plsql_varchar2));
 END;
+
+ -- 230405
+ -- Self-Check 1
+DECLARE 
+	vi_num NUMBER;
+BEGIN 
+	vi_num := 3 * 1;
+	dbms_output.put_line('3 * 1 = ' || vi_num);
+	vi_num := 3 * 2;
+	dbms_output.put_line('3 * 2 = ' || vi_num);
+	vi_num := 3 * 3;
+	dbms_output.put_line('3 * 3 = ' || vi_num);
+	vi_num := 3 * 4;
+	dbms_output.put_line('3 * 4 = ' || vi_num);
+	vi_num := 3 * 5;
+	dbms_output.put_line('3 * 5 = ' || vi_num);
+	vi_num := 3 * 6;
+	dbms_output.put_line('3 * 6 = ' || vi_num);
+	vi_num := 3 * 7;
+	dbms_output.put_line('3 * 7 = ' || vi_num);
+	vi_num := 3 * 8;
+	dbms_output.put_line('3 * 8 = ' || vi_num);
+	vi_num := 3 * 9;
+	dbms_output.put_line('3 * 9 = ' || vi_num);
+END;
+
+ -- Self-Check 2
+DECLARE 
+	vs_emp_name EMPLOYEES.EMP_NAME%TYPE;
+	vs_email	EMPLOYEES.EMAIL%TYPE;
+BEGIN 
+	SELECT EMP_NAME , EMAIL 
+	INTO vs_emp_name, vs_email
+	FROM EMPLOYEES
+	WHERE EMPLOYEE_ID = '201';
+
+	dbms_output.put_line('사원 이름 : ' || vs_emp_name || ', ' || '이메일 주소 : ' || vs_email);
+END;
+
+DECLARE 
+	vs_next_id EMPLOYEES.EMPLOYEE_ID%TYPE;
+BEGIN 
+	SELECT MAX(EMPLOYEE_ID) + 1 
+	INTO vs_next_id
+	FROM EMPLOYEES ;
+
+	INSERT INTO EMPLOYEES (EMPLOYEE_ID, EMP_NAME, EMAIL, HIRE_DATE, MANAGER_ID) 
+	VALUES (vs_next_id, 'Harrison Ford', 'HARRIS', sysdate, 50) ;
+END;
+
+SELECT MAX(EMPLOYEE_ID) + 1 
+FROM EMPLOYEES ;
+SELECT * FROM EMPLOYEES WHERE EMPLOYEE_ID = 208 ;
+
+DECLARE 
+	vn_num1 NUMBER := 1;
+	vn_num2 NUMBER := 2;
+BEGIN 
+	IF vn_num1 >= vn_num2 THEN 
+		dbms_output.put_line(vn_num1 || '이 큰 수');
+	ELSE 
+		dbms_output.put_line(vn_num2 || '이 큰 수');
+	END IF;
+END;
+
+DECLARE 
+	vn_salary NUMBER := 0;
+	vn_deparment_id NUMBER := 0;
+BEGIN 
+	vn_deparment_id := ROUND(dbms_random.value(10, 120), -1);
+
+	SELECT SALARY 
+	INTO vn_salary
+	FROM EMPLOYEES 
+	WHERE DEPARTMENT_ID = vn_deparment_id
+	AND rownum = 1;
+
+	dbms_output.put_line(vn_salary);
+
+	IF vn_salary BETWEEN 1 AND 3000 THEN 
+		dbms_output.put_line('낮음');
+	ELSIF vn_salary BETWEEN 3001 AND 6000 THEN 
+		dbms_output.put_line('중간');
+	ELSIF vn_salary BETWEEN 6001 AND 10000 THEN 
+		dbms_output.put_line('높음');
+	ELSE 
+		dbms_output.put_line('최상위');
+	END IF;
+END;
+
+SELECT ROUND(dbms_random.value(10, 120), -1) FROM dual ;
+
+SELECT COMMISSION_PCT
+FROM EMPLOYEES 
+WHERE COMMISSION_PCT IS NOT NULL 
+;
+
+DECLARE 
+	vn_salary NUMBER := 0;
+	vn_deparment_id NUMBER := 0;
+	vn_commission NUMBER := 0;
+BEGIN 
+	vn_deparment_id := ROUND(dbms_random.value(10, 120), -1);
+
+	SELECT SALARY , COMMISSION_PCT 
+	INTO vn_salary, vn_commission
+	FROM EMPLOYEES 
+	WHERE DEPARTMENT_ID = vn_deparment_id
+--	AND COMMISSION_PCT IS NOT NULL 
+	AND rownum = 1;
+
+	dbms_output.put_line(vn_salary || ', ' || vn_commission);
+
+	IF vn_commission > 0 THEN 
+		IF vn_commission > 0.15 THEN 
+			dbms_output.put_line(vn_salary * vn_commission);
+		END IF;
+	ELSE 
+		dbms_output.put_line(vn_salary);
+	END IF;
+END;
+
+DECLARE 
+	vn_salary NUMBER := 0;
+	vn_deparment_id NUMBER := 0;
+BEGIN 
+	vn_deparment_id := ROUND(dbms_random.value(10, 120), -1);
+
+	SELECT SALARY 
+	INTO vn_salary
+	FROM EMPLOYEES 
+	WHERE DEPARTMENT_ID = vn_deparment_id
+	AND rownum = 1;
+
+	dbms_output.put_line(vn_salary);
+
+	CASE WHEN vn_salary BETWEEN 1 AND 3000 THEN 
+			dbms_output.put_line('낮음');
+		when vn_salary BETWEEN 3001 AND 6000 THEN 
+			dbms_output.put_line('중간');
+		WHEN vn_salary BETWEEN 6001 AND 10000 THEN 
+			dbms_output.put_line('높음');
+		ELSE 
+			dbms_output.put_line('최상위');
+	END case;
+END;
+
+DECLARE 
+	vn_base_num NUMBER := 3;
+	vn_cnt		NUMBER := 1;
+BEGIN 
+	LOOP 
+		dbms_output.put_line(vn_base_num || '*' || vn_cnt || '= ' || vn_base_num * vn_cnt);
+		vn_cnt := vn_cnt + 1;
+	
+		EXIT WHEN vn_cnt > 9;
+	END LOOP ;
+END;
+
+DECLARE 
+	vn_base_num NUMBER := 3;
+	vn_cnt		NUMBER := 1;
+BEGIN 
+WHILE vn_cnt <= 9
+LOOP 
+	dbms_output.put_line(vn_base_num || '*' || vn_cnt || '= ' || vn_base_num * vn_cnt);
+	vn_cnt := vn_cnt + 1;
+END LOOP ;
+END;
+
+DECLARE 
+	vn_base_num CONSTANT NUMBER := 3;
+BEGIN 
+	FOR i IN 1..9
+	LOOP 
+		dbms_output.put_line(vn_base_num || '*' || i || '= ' || vn_base_num * i);
+	END LOOP;
+END;
+
+DECLARE 
+	vn_base_num CONSTANT NUMBER := 3;
+BEGIN 
+	FOR i IN REVERSE 1..9
+	LOOP 
+		dbms_output.put_line(vn_base_num || '*' || i || '= ' || vn_base_num * i);
+	END LOOP;
+END;
+
+DECLARE 
+	vn_base_num CONSTANT NUMBER := 3;
+BEGIN 
+	FOR i IN 1..9
+	LOOP 
+		CONTINUE WHEN i = 5;
+		dbms_output.put_line(vn_base_num || '*' || i || '= ' || vn_base_num * i);
+	END LOOP;
+END;
+
+DECLARE 
+	vn_base_num NUMBER := 3;
+BEGIN 
+	<<third>>
+	FOR i IN 1..9
+	LOOP 
+		CONTINUE WHEN i = 5;
+		dbms_output.put_line(vn_base_num || '*' || i || '= ' || vn_base_num * i);
+		IF i = 3 THEN 
+			GOTO fourth;
+		END IF;
+	END LOOP;
+
+	<<fourth>>
+	vn_base_num := 4;
+	FOR i IN 1..9
+	LOOP
+		dbms_output.put_line(vn_base_num || '*' || i || '= ' || vn_base_num * i);
+	END LOOP;
+END;
+
+SELECT MOD(10, 3) FROM dual ;
+SELECT floor(10 / 3) FROM dual ;
+
+CREATE OR REPLACE FUNCTION my_mod(num1 NUMBER, num2 NUMBER)
+	RETURN NUMBER 
+IS 
+	vn_remainder NUMBER := 0;
+	vn_quotient	 NUMBER := 0;
+BEGIN 
+	vn_quotient  := floor(num1 / num2);
+	vn_remainder := num1 - (num2 * vn_quotient);
+
+	RETURN vn_remainder;
+END;
+
+SELECT my_mod(14, 3) reminder FROM dual ;
+
+CREATE OR REPLACE FUNCTION fn_get_country_name(p_country_id NUMBER)
+	RETURN varchar2 
+IS 
+	vs_country_name countries.COUNTRY_NAME%TYPE;
+BEGIN 
+	SELECT COUNTRY_NAME 
+	INTO vs_country_name
+	FROM countries
+	WHERE COUNTRY_ID = p_country_id;
+
+	RETURN vs_country_name;
+END;
+
+SELECT fn_get_country_name(52777) coun1, fn_get_country_name(10000) coun2 FROM dual ;
+
+SELECT * FROM countries ;
+
+CREATE OR REPLACE FUNCTION fn_get_country_name(p_country_id NUMBER)
+	RETURN varchar2 
+IS 
+	vs_country_name countries.COUNTRY_NAME%TYPE;
+	vn_count NUMBER := 0;
+BEGIN 
+	SELECT count(*) 
+	INTO vn_count
+	FROM countries
+	WHERE COUNTRY_ID = p_country_id;
+
+	IF vn_count = 0 THEN 
+		vs_country_name := '해당국가 없음';
+	ELSE 
+		SELECT COUNTRY_NAME 
+		INTO vs_country_name
+		FROM countries
+		WHERE COUNTRY_ID = p_country_id;
+	END IF ;
+
+	RETURN vs_country_name;
+END;
