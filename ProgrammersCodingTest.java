@@ -3,44 +3,35 @@ package codingTest;
 public class ProgrammersCodingTest {
 
 	public static void main(String[] args) {
-		int[] arrFood = new int[] {1, 7, 1, 2};
+		int num = 15;
 		
-		solution(arrFood);
+		solution(num);
 	}
 
-	// 푸드 파이트 대회
-	public static String solution(int[] food) {
-        String answer = "";
-        
-        for (int i = 0; i < food.length; i++) {
-        	// 물이 아닐때
-        	if (i != 0) {
-        		for (int j = 0; j < food[i] / 2; j++) {
-        			answer += i;
-        		}
+	// 숫자의 표현 (*못풀어서 해설 참조)
+	static int allCnt = 0;
+	public static int solution(int n) {
+        int answer = 0;
+
+        for (int i = 1; i <= n; i++) {
+        	int sum = 0;
+        	
+        	for (int j = i; j <= n; j++) {
+        		System.out.println(j);
+        		sum += j;
         		
-//        		if (food[i] % 2 == 0) {
-//        			for (int j = 0; j < food[i] / 2; j++) {
-//        				System.out.println(j);
-//        				answer += i;
-//        			}
-//        			System.out.println();    				
-//        		} else {
-//        			
-//        		}
+        		if (sum == n) {
+        			answer++;
+        			break;
+        		} else if (sum > n) {
+        			break;
+        		}
         	}
-        }
-        
-        answer += "0";
-        
-        for (int i = food.length - 1; i >= 0; i--) {
-        	for (int j = 0; j < food[i] / 2; j++) {
-    			answer += i;
-    		}
+        	System.out.println("sum : " + sum);
+        	System.out.println();
         }
         
         System.out.println("answer : " + answer);
         return answer;
     }
-	
 }
