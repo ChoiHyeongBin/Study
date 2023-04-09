@@ -1276,3 +1276,224 @@ BEGIN
 
 	RETURN vs_country_name;
 END;
+
+
+ -- 230409
+CREATE OR REPLACE FUNCTION fn_get_user
+	RETURN varchar2 
+IS 
+	vs_user_name varchar2(80);
+BEGIN 
+	SELECT USER
+	INTO vs_user_name
+	FROM dual;
+
+	RETURN vs_user_name;
+END;
+
+SELECT fn_get_user(), fn_get_user
+FROM dual ;
+
+CREATE OR REPLACE PROCEDURE ORA_USER.MY_NEW_JOB_PROC
+( p_job_id IN JOBS.JOB_ID%TYPE,
+  p_job_title IN JOBS.JOB_TITLE%TYPE,
+  p_min_sal IN JOBS.MIN_SALARY%TYPE,
+  p_max_sal IN JOBS.MAX_SALARY%TYPE )
+IS
+	
+BEGIN
+	INSERT INTO JOBS (JOB_ID, JOB_TITLE, MIN_SALARY, MAX_SALARY, CREATE_DATE, UPDATE_DATE)
+	-- INSERT할 컬럼 인자들을 다 넣어주지 않으면 컴파일시 에러발생
+	VALUES (p_job_id, p_job_title, p_min_sal, p_max_sal, sysdate, sysdate);
+
+	COMMIT;
+END MY_NEW_JOB_PROC;
+
+EXEC MY_NEW_JOB_PROC ('SM_JOB1', 'Sample JOB1', 1000, 5000);
+
+BEGIN 
+	ORA_USER.MY_NEW_JOB_PROC ('SM_JOB2', 'Sample JOB2', 8000, 4000);
+END;
+
+CALL ORA_USER.MY_NEW_JOB_PROC('SM_JOB1', 'Sample JOB1', 1000, 5000);
+
+--GRANT EXECUTE ON dbms_crypto TO ORA_USER ;
+
+SELECT *
+FROM JOBS 
+WHERE JOB_ID = 'SM_JOB1'
+;
+
+CREATE OR REPLACE PROCEDURE MY_NEW_JOB_PROC
+( p_job_id IN JOBS.JOB_ID%TYPE,
+  p_job_title IN JOBS.JOB_TITLE%TYPE,
+  p_min_sal IN JOBS.MIN_SALARY%TYPE:=10,
+  p_max_sal IN JOBS.MAX_SALARY%TYPE:=100
+--  p_upd_date OUT JOBS.UPDATE_DATE%TYPE
+)
+IS
+	vn_cnt NUMBER := 0;
+	vn_cur_date JOBS.UPDATE_DATE%TYPE := sysdate ;
+BEGIN
+	IF p_min_sal < 1000 THEN
+		dbms_output.put_line('최소 급여값은 1000 이상이어야 합니다.');
+		RETURN;
+	END IF;
+	
+	SELECT COUNT(*) 
+	INTO vn_cnt
+	FROM JOBS
+	WHERE JOB_ID = p_job_id;
+
+	IF vn_cnt = 0 THEN 
+		INSERT INTO JOBS (JOB_ID, JOB_TITLE, MIN_SALARY, MAX_SALARY, CREATE_DATE, UPDATE_DATE)
+		VALUES (p_job_id, p_job_title, p_min_sal, p_max_sal, vn_cur_date, vn_cur_date);
+	ELSE 
+		UPDATE JOBS 
+		SET	   JOB_TITLE = p_job_title,
+			   MIN_SALARY = p_min_sal,
+			   MAX_SALARY = p_max_sal,
+			   UPDATE_DATE = vn_cur_date 
+		WHERE JOB_ID = p_job_id;
+	END IF;
+
+--	p_upd_date := vn_cur_date;
+
+	COMMIT;
+END;
+
+BEGIN 
+	MY_NEW_JOB_PROC('SM_JOB1', 'Sample JOB1', 1000, 6000);
+END;
+
+BEGIN 
+	MY_NEW_JOB_PROC(p_job_id => 'SM_JOB1', p_job_title => 'Sample JOB1', p_min_sal => 2000, p_max_sal => 7000);
+END;
+
+BEGIN 
+	MY_NEW_JOB_PROC('SM_JOB1', 'Sample JOB1');
+END;
+
+DECLARE 
+	vd_cur_date JOBS.UPDATE_DATE%TYPE ;
+BEGIN
+	MY_NEW_JOB_PROC('SM_JOB1', 'Sample JOB1', 2000, 6000, vd_cur_date);
+
+	dbms_output.put_line(vd_cur_date);
+END;
+
+CREATE OR REPLACE PROCEDURE my_parameter_test_proc (
+	p_var1 varchar2,
+	p_var2 OUT varchar2,
+	p_var3 IN OUT varchar2 )
+IS 
+	
+BEGIN 
+	dbms_output.put_line('p_var1 value = ' || p_var1);
+	dbms_output.put_line('p_var2 value = ' || p_var2);
+	dbms_output.put_line('p_var3 value = ' || p_var3);
+
+	p_var2 := 'B2';
+	p_var3 := 'C2';
+END;
+	
+DECLARE 
+	v_var1 varchar2(10) := 'A';
+	v_var2 varchar2(10) := 'B';
+	v_var3 varchar2(10) := 'C';
+BEGIN 
+	my_parameter_test_proc(v_var1, v_var2, v_var3);
+
+	dbms_output.put_line('v_var1 value = ' || v_var1);
+	dbms_output.put_line('v_var2 value = ' || v_var2);
+	dbms_output.put_line('v_var3 value = ' || v_var3);
+END;
+
+DECLARE 
+	vn_base_num NUMBER := 3;
+BEGIN 
+	FOR i IN reverse 1..9
+	LOOP
+		dbms_output.put_line(vn_base_num || '*' || i || '= ' || vn_base_num * i);
+	END LOOP;	
+END;
+
+DECLARE 
+	vi_num NUMBER ;
+BEGIN 
+	vi_num := 100;
+
+	dbms_output.put_line(vi_num);
+END;
+
+SELECT INITCAP('test') FROM dual ;
+
+ -- Self-Check 2
+CREATE OR REPLACE FUNCTION my_initcap(str varchar2)
+	RETURN varchar2
+IS 
+	vn_str varchar2(80);
+BEGIN 
+	vn_str := UPPER(SUBSTR(str, 0, 1))||SUBSTR(str, 2);
+
+	RETURN vn_str;
+END ;
+
+SELECT UPPER(SUBSTR('test str', 0, 1))||SUBSTR('test str', 2) FROM dual ;
+SELECT SUBSTR('test str', 2) FROM dual ;
+
+SELECT my_initcap('jason mraz') FROM dual ;
+
+SELECT TO_CHAR(LAST_DAY('20230109'), 'DD') FROM dual ;
+
+ -- Self-Check 3
+CREATE OR REPLACE FUNCTION my_last_day(dt varchar2)
+	RETURN varchar2
+IS 
+	vs_last_day varchar2(23);
+BEGIN 
+	vs_last_day := TO_CHAR(LAST_DAY(dt), 'DD');
+
+	RETURN vs_last_day;
+END;
+
+SELECT my_last_day('20220201') FROM dual ;
+
+CREATE TABLE ch09_dept (
+	department_id NUMBER,
+	department_name varchar2(100),
+	levels number
+);
+
+SELECT 
+	DEPARTMENT_ID , 
+	LPAD(' ', 3 * (LEVEL - 1)) || DEPARTMENT_NAME ,
+	LEVEL 
+FROM 
+	DEPARTMENTS 
+START WITH parent_id IS NULL
+CONNECT BY PRIOR DEPARTMENT_ID = PARENT_ID 
+ORDER siblings BY DEPARTMENT_NAME 
+;
+
+CREATE OR REPLACE PROCEDURE my_hier_dept_proc
+IS 
+
+BEGIN 
+	DELETE FROM ch09_dept ;
+	
+	INSERT INTO ch09_dept (department_id, department_name, levels)
+	SELECT 
+		DEPARTMENT_ID , 
+		LPAD(' ', 3 * (LEVEL - 1)) || DEPARTMENT_NAME ,
+		LEVEL 
+	FROM 
+		DEPARTMENTS 
+	START WITH parent_id IS NULL
+	CONNECT BY PRIOR DEPARTMENT_ID = PARENT_ID 
+	ORDER siblings BY DEPARTMENT_NAME ;
+END;
+
+SELECT * FROM ch09_dept;
+
+CALL my_hier_dept_proc();
