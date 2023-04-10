@@ -1476,6 +1476,7 @@ CONNECT BY PRIOR DEPARTMENT_ID = PARENT_ID
 ORDER siblings BY DEPARTMENT_NAME 
 ;
 
+ -- Self-Check 4
 CREATE OR REPLACE PROCEDURE my_hier_dept_proc
 IS 
 
@@ -1497,3 +1498,98 @@ END;
 SELECT * FROM ch09_dept;
 
 CALL my_hier_dept_proc();
+
+
+ -- 230410
+ -- Self-Check 5
+CREATE OR REPLACE PROCEDURE MY_NEW_JOB_PROC2
+( p_job_id IN JOBS.JOB_ID%TYPE,
+  p_job_title IN JOBS.JOB_TITLE%TYPE,
+  p_min_sal IN JOBS.MIN_SALARY%TYPE,
+  p_max_sal IN JOBS.MAX_SALARY%TYPE )
+IS
+	vn_cnt NUMBER := 0;
+BEGIN
+	MERGE INTO JOBS a
+	USING (SELECT COUNT(*) AS cnt 
+			FROM JOBS
+			WHERE JOB_ID = p_job_id) b
+	ON (b.cnt = 1)
+	WHEN MATCHED THEN 
+		UPDATE  
+		SET	   a.JOB_TITLE = p_job_title,
+			   a.MIN_SALARY = p_min_sal,
+			   a.MAX_SALARY = p_max_sal,
+			   a.UPDATE_DATE = sysdate 
+		WHERE a.JOB_ID = p_job_id
+	WHEN NOT MATCHED THEN 
+		INSERT (a.JOB_ID, a.JOB_TITLE, a.MIN_SALARY, a.MAX_SALARY, a.CREATE_DATE, a.UPDATE_DATE)
+		VALUES (p_job_id, p_job_title, p_min_sal, p_max_sal, sysdate, sysdate);
+
+	COMMIT;
+END;
+
+BEGIN 
+	MY_NEW_JOB_PROC2('SM_JOB$', 'test222', 200023, 100044);
+END;
+
+CREATE TABLE ch09_deparments AS 
+SELECT DEPARTMENT_ID , DEPARTMENT_NAME , PARENT_ID 
+FROM DEPARTMENTS ;
+
+SELECT * FROM ch09_deparments ;
+
+ -- Self-Check 6
+CREATE OR REPLACE PROCEDURE my_dept_manage_proc
+( p_department_id IN DEPARTMENTS.DEPARTMENT_ID%TYPE,
+  p_deparment_name IN DEPARTMENTS.DEPARTMENT_NAME%TYPE,
+  p_parent_id IN DEPARTMENTS.PARENT_ID%TYPE,
+  p_proc_flag IN varchar2	-- 인수선언할때 byte수 지정안함
+)
+IS 
+	vn_cnt NUMBER := 0;
+BEGIN 
+--	dbms_output.put_line('1');
+	IF p_proc_flag = 'upsert' THEN 
+--		dbms_output.put_line('2');
+		SELECT COUNT(*) 
+		INTO vn_cnt
+		FROM DEPARTMENTS
+		WHERE DEPARTMENT_ID = p_department_id;
+	
+		CASE WHEN vn_cnt > 0 THEN
+--			dbms_output.put_line('3');
+			UPDATE ch09_deparments
+			SET  DEPARTMENT_NAME = p_deparment_name,
+				 PARENT_ID = p_parent_id
+			WHERE DEPARTMENT_ID = p_department_id;
+			 ELSE 
+--				 dbms_output.put_line('4');
+				INSERT INTO ch09_deparments (DEPARTMENT_ID, DEPARTMENT_NAME, PARENT_ID)
+				VALUES (p_department_id, p_deparment_name, p_parent_id);
+		END CASE;
+	ELSE 
+--		dbms_output.put_line('5');
+		SELECT COUNT(*) 
+		INTO vn_cnt
+		FROM EMPLOYEES
+		WHERE DEPARTMENT_ID = p_department_id;
+	
+		CASE WHEN vn_cnt > 0 THEN
+			dbms_output.put_line('해당 부서에 속한 사원이 존재합니다.');
+			RETURN;
+			 ELSE 
+				 dbms_output.put_line('6');
+				 DELETE FROM ch09_deparments WHERE DEPARTMENT_ID = p_department_id;
+		END CASE;
+	END IF;
+
+	COMMIT;
+END;
+
+BEGIN 
+	my_dept_manage_proc(280, 'QA팀', 210, 'delete');
+END;
+
+SELECT * FROM ch09_deparments d ;
+SELECT * FROM EMPLOYEES WHERE DEPARTMENT_ID = '280' ;
