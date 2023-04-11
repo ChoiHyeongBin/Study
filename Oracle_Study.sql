@@ -1619,7 +1619,7 @@ IS
 	vi_num NUMBER := 0;
 BEGIN 
 	vi_num := 10 / 0;
-	dbms_output.put_line('Success!');
+	dbms_output.put_line('Success! 11');
 
 	EXCEPTION 
 	WHEN ZERO_DIVIDE THEN
@@ -1643,7 +1643,7 @@ DECLARE
 	vi_num NUMBER := 0;
 BEGIN 
 	ch10_exception_proc;
-	dbms_output.put_line('Success!');
+	dbms_output.put_line('Success! 22');
 END;
 
 BEGIN 
@@ -1690,3 +1690,60 @@ END;
 
 SELECT 1 FROM jobs WHERE JOB_ID = 'SM_JOB4' ;
 SELECT * FROM employees WHERE EMPLOYEE_ID = '200' ;
+
+CREATE OR REPLACE PROCEDURE ch10_ins_emp_proc(
+	p_emp_name employees.EMP_NAME%TYPE,
+	p_department_id departments.DEPARTMENT_ID%TYPE,
+	p_hire_month varchar2 )
+IS 
+	vn_employee_id employees.EMPLOYEE_ID%TYPE;
+	vd_curr_date   DATE := sysdate;
+	vn_cnt		   NUMBER := 0;
+
+	ex_invalid_depid EXCEPTION;
+
+	ex_invalid_month EXCEPTION;
+	pragma exception_init (ex_invalid_month, -1843);
+BEGIN 
+	SELECT COUNT(*)
+	INTO vn_cnt
+	FROM DEPARTMENTS 
+	WHERE DEPARTMENT_ID = p_department_id;
+
+	IF vn_cnt = 0 THEN 
+		raise ex_invalid_depid;
+	END IF;
+
+	IF substr(p_hire_month, 5, 2) NOT BETWEEN '01' AND '12' THEN 
+		raise ex_invalid_month;
+	END IF;
+
+	SELECT MAX(employee_id) + 1 
+	INTO vn_employee_id
+	FROM EMPLOYEES;
+	
+	INSERT INTO EMPLOYEES ( employee_id, EMP_NAME, HIRE_DATE, DEPARTMENT_ID )
+	VALUES ( vn_employee_id, p_emp_name, to_date(p_hire_month || '01'), p_department_id );
+
+	COMMIT;
+
+EXCEPTION 
+WHEN ex_invalid_depid THEN 
+	dbms_output.put_line('해당 부서번호가 없습니다.');
+WHEN ex_invalid_month THEN 
+	dbms_output.put_line(sqlcode);
+	dbms_output.put_line(sqlerrm);
+	dbms_output.put_line('1~12월 범위를 벗어난 월입니다.');
+WHEN OTHERS THEN 
+	dbms_output.put_line(sqlerrm);
+
+END;
+
+BEGIN 
+	ch10_ins_emp_proc('홍길동', 110, '201314');
+END;
+
+SELECT * FROM DEPARTMENTS ;
+SELECT to_date('201312' || '01') FROM dual ;
+SELECT '201314' || '01' FROM dual ;
+
