@@ -1593,3 +1593,100 @@ END;
 
 SELECT * FROM ch09_deparments d ;
 SELECT * FROM EMPLOYEES WHERE DEPARTMENT_ID = '280' ;
+
+
+ -- 230411
+DECLARE 
+	vi_num NUMBER := 0;
+BEGIN 
+	vi_num := 10 / 0;
+	dbms_output.put_line('Success!');
+
+	EXCEPTION WHEN OTHERS THEN
+		dbms_output.put_line('오류가 발생했습니다');
+END;
+
+CREATE OR REPLACE PROCEDURE ch10_no_exception_proc
+IS 
+	vi_num NUMBER := 0;
+BEGIN 
+	vi_num := 10 / 0;
+	dbms_output.put_line('Success!');
+END;
+
+CREATE OR REPLACE PROCEDURE ch10_exception_proc
+IS 
+	vi_num NUMBER := 0;
+BEGIN 
+	vi_num := 10 / 0;
+	dbms_output.put_line('Success!');
+
+	EXCEPTION 
+	WHEN ZERO_DIVIDE THEN
+		dbms_output.put_line('오류 1');
+		dbms_output.put_line('SQL ERROR MESSAGE1: ' || sqlerrm);
+--		dbms_output.put_line(sqlerrm(sqlcode));
+--		dbms_output.put_line(DBMS_UTILITY.FORMAT_ERROR_BACKTRACE);
+	WHEN OTHERS THEN 
+		dbms_output.put_line('오류 2');
+		dbms_output.put_line('SQL ERROR MESSAGE2: ' || sqlerrm);
+END;
+
+DECLARE 
+	vi_num NUMBER := 0;
+BEGIN 
+	ch10_no_exception_proc;
+	dbms_output.put_line('Success!');
+END;
+
+DECLARE 
+	vi_num NUMBER := 0;
+BEGIN 
+	ch10_exception_proc;
+	dbms_output.put_line('Success!');
+END;
+
+BEGIN 
+	ch10_exception_proc;
+END;
+
+CREATE OR REPLACE PROCEDURE ch10_upd_jobid_proc
+( p_employee_id employees.EMPLOYEE_ID%TYPE,
+  p_job_id jobs.JOB_ID%TYPE )
+IS 
+	vn_cnt NUMBER := 0;
+BEGIN 
+	SELECT 1
+	INTO vn_cnt
+	FROM JOBS 
+	WHERE JOB_ID = p_job_id;
+
+	UPDATE employees
+	SET JOB_ID = p_job_id
+	WHERE EMPLOYEE_ID = p_employee_id;
+
+--	IF vn_cnt = 0 THEN
+--		dbms_output.put_line('job_id가 없습니다');
+--		return;
+--	ELSE 
+--		UPDATE employees
+--		SET JOB_ID = p_job_id
+--		WHERE EMPLOYEE_ID = p_employee_id;
+--	END IF;
+
+	COMMIT;
+
+EXCEPTION 
+WHEN no_data_found THEN
+	dbms_output.put_line(sqlerrm);
+	dbms_output.put_line(p_job_id || '에 해당되는 job_id가 없습니다.');
+WHEN OTHERS THEN 
+	dbms_output.put_line('기타 에러: ' || sqlerrm);
+END;
+
+BEGIN 
+	ch10_upd_jobid_proc(200, 'SM_JOB4');
+END;
+
+SELECT 1 FROM jobs WHERE JOB_ID = 'SM_JOB4' ;
+SELECT * FROM employees WHERE EMPLOYEE_ID = '200' ;
