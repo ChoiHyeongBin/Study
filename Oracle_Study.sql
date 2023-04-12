@@ -1747,3 +1747,130 @@ SELECT * FROM DEPARTMENTS ;
 SELECT to_date('201312' || '01') FROM dual ;
 SELECT '201314' || '01' FROM dual ;
 
+
+ -- 230412
+CREATE OR REPLACE PROCEDURE ch10_raise_test_proc( p_num NUMBER )
+IS 
+	
+BEGIN 
+	IF p_num <= 0 THEN 
+--		raise invalid_number;
+		raise_application_error(-20000, '양수만 입력받을 수 있단 말입니다!');
+	END IF;
+
+	dbms_output.put_line(p_num);
+
+EXCEPTION 
+WHEN invalid_number THEN 
+	dbms_output.put_line('양수만 입력받을 수 있습니다.');
+WHEN OTHERS THEN 
+	dbms_output.put_line(sqlcode);
+	dbms_output.put_line(sqlerrm);
+END;
+
+BEGIN 
+	ch10_raise_test_proc(-10);
+END;
+
+CREATE TABLE error_log (
+	error_seq		NUMBER,				 -- 에러 시퀀스
+	prog_name		varchar2(80),		 -- 프로그램명
+	error_code		NUMBER,				 -- 에러코드
+	error_message	varchar2(300),		 -- 에러 메시지
+	error_line		varchar2(100),		 -- 에러 라인
+	error_date		DATE DEFAULT sysdate -- 에러 발생 일자
+);
+
+SELECT * FROM error_log ;
+
+CREATE SEQUENCE error_seq
+	   INCREMENT BY 1
+	   START WITH 1
+	   MINVALUE 1
+	   MAXVALUE 999999
+	   nocycle
+	   nocache;
+	   
+CREATE OR REPLACE PROCEDURE error_log_proc (
+	p_prog_name error_log.PROG_NAME%TYPE,
+	p_error_code error_log.ERROR_CODE%TYPE,
+	p_error_message error_log.ERROR_MESSAGE%TYPE,
+	p_error_line error_log.ERROR_LINE%TYPE )
+IS 
+
+BEGIN 
+	INSERT INTO error_log (ERROR_SEQ, PROG_NAME, ERROR_CODE, ERROR_MESSAGE, ERROR_LINE)
+	VALUES (error_seq.nextval, p_prog_name, p_error_code, p_error_message, p_error_line);
+
+	COMMIT;
+END;
+
+CREATE OR REPLACE PROCEDURE ch10_ins_emp2_proc(
+	p_emp_name employees.EMP_NAME%TYPE,
+	p_department_id departments.DEPARTMENT_ID%TYPE,
+	p_hire_month varchar2 )
+IS 
+	vn_employee_id employees.EMPLOYEE_ID%TYPE;
+	vd_curr_date   DATE := sysdate;
+	vn_cnt		   NUMBER := 0;
+
+	ex_invalid_depid EXCEPTION;
+	pragma exception_init (ex_invalid_depid, -20000);
+
+	ex_invalid_month EXCEPTION;
+	pragma exception_init (ex_invalid_month, -1843);
+
+	v_err_code error_log.error_code%TYPE;
+	v_err_msg error_log.error_message%TYPE;
+	v_err_line error_log.error_line%TYPE;
+BEGIN 
+	SELECT COUNT(*)
+	INTO vn_cnt
+	FROM DEPARTMENTS 
+	WHERE DEPARTMENT_ID = p_department_id;
+
+	IF vn_cnt = 0 THEN 
+		raise ex_invalid_depid;
+	END IF;
+
+	IF substr(p_hire_month, 5, 2) NOT BETWEEN '01' AND '12' THEN 
+		raise ex_invalid_month;
+	END IF;
+
+	SELECT MAX(employee_id) + 1 
+	INTO vn_employee_id
+	FROM EMPLOYEES;
+	
+	INSERT INTO EMPLOYEES ( employee_id, EMP_NAME, HIRE_DATE, DEPARTMENT_ID )
+	VALUES ( vn_employee_id, p_emp_name, to_date(p_hire_month || '01'), p_department_id );
+
+	COMMIT;
+
+EXCEPTION 
+WHEN ex_invalid_depid THEN 
+	v_err_code := sqlcode;
+	v_err_msg := sqlerrm;
+	v_err_line := dbms_utility.format_error_backtrace;
+	ROLLBACK;
+	error_log_proc('ch12_ins_emp2_proc', v_err_code, v_err_msg, v_err_line);
+WHEN ex_invalid_month THEN 
+	v_err_code := sqlcode;
+	v_err_msg := sqlerrm;
+	v_err_line := dbms_utility.format_error_backtrace;
+	ROLLBACK;
+	error_log_proc('ch12_ins_emp2_proc', v_err_code, v_err_msg, v_err_line);
+WHEN OTHERS THEN 
+	v_err_code := sqlcode;
+	v_err_msg := sqlerrm;
+	v_err_line := dbms_utility.format_error_backtrace;
+	ROLLBACK;
+	error_log_proc('ch12_ins_emp2_proc', v_err_code, v_err_msg, v_err_line);
+END;
+
+BEGIN 
+	ch10_ins_emp2_proc('HONG', 100, '201413');
+END;
+
+SELECT * FROM DEPARTMENTS WHERE DEPARTMENT_ID = 1000 ;
+
+SELECT * FROM error_log ;
