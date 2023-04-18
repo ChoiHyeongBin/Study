@@ -1,40 +1,31 @@
 package codingTest;
 
+import java.time.DayOfWeek;
+import java.time.LocalDate;
+import java.time.format.TextStyle;
+import java.util.Locale;
+
 public class ProgrammersCodingTest {
 
 	public static void main(String[] args) {
-		int num = 78;
+		int a = 5;
+		int b = 24;
 		
-		solution(num);
+		solution(a, b);
 	}
 
-	// 다음 큰 숫자
-	public static int solution(int n) {
-        int answer = 0;
-        // long numCnt = Integer.toBinaryString(n).chars().filter(c -> c == '1').count();	// *시간초과
-        int numCnt = Integer.toBinaryString(n).length() - Integer.toBinaryString(n).replace("1", "").length();
-        	System.out.println("numCnt : " + numCnt);
+	// LV1 2016년 (*너무 느림, 라이브러리 안쓰고 구현해야할 듯?)
+	public static String solution(int a, int b) {
+        String answer = "";
         
-        while (true) {
-//        	System.out.println("현재 n : " + n);
-//        	System.out.println("현재 n : " + Integer.toBinaryString(n));
-        	n++;
-        	
-        	// long nextCnt = Integer.toBinaryString(n).chars().filter(c -> c == '1').count();
-        	int nextCnt = Integer.toBinaryString(n).length() - Integer.toBinaryString(n).replace("1", "").length();
-        	
-        	System.out.println("다음 n : " + n);
-        	System.out.println("다음 n : " + Integer.toBinaryString(n));
-        	System.out.println("nextCnt : " + nextCnt);
-        	System.out.println();
-        	
-        	if (numCnt == nextCnt) {
-        		answer = n;
-        		break;
-        	}
-        }
+        LocalDate date = LocalDate.of(2016, a, b);
+        System.out.println("date : " + date);
         
-        System.out.println("최종 n : " + n);
+        DayOfWeek dayOfWeek = date.getDayOfWeek();
+        
+        System.out.println(dayOfWeek.getDisplayName(TextStyle.SHORT, Locale.US).toUpperCase());
+        
+        answer = dayOfWeek.getDisplayName(TextStyle.SHORT, Locale.US).toUpperCase();
         return answer;
     }
 }
