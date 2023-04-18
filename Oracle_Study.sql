@@ -1874,3 +1874,158 @@ END;
 SELECT * FROM DEPARTMENTS WHERE DEPARTMENT_ID = 1000 ;
 
 SELECT * FROM error_log ;
+
+
+ -- 230418
+CREATE TABLE app_user_define_error (
+	error_code 	  NUMBER,				-- 에러코드
+	error_message varchar2(300),		-- 에러 메시지
+	create_date   DATE DEFAULT sysdate,	-- 등록일자
+	PRIMARY KEY (error_code)
+);
+
+INSERT INTO app_user_define_error (error_code, error_message)
+VALUES (-1843, '지정한 월이 부적합합니다.');
+INSERT INTO app_user_define_error (error_code, error_message)
+VALUES (-20000, '해당 부서가 없습니다.');
+
+SELECT * FROM app_user_define_error ;
+SELECT * FROM ERROR_LOG ;
+
+CREATE OR REPLACE PROCEDURE error_log_proc (
+	p_prog_name error_log.PROG_NAME%TYPE,
+	p_error_code error_log.ERROR_CODE%TYPE,
+	p_error_message error_log.ERROR_MESSAGE%TYPE,
+	p_error_line error_log.ERROR_LINE%TYPE )
+IS 
+	vn_error_code ERROR_LOG.ERROR_CODE%TYPE := p_error_code;
+	vn_error_message ERROR_LOG.error_message%TYPE := p_error_message;
+BEGIN 
+	dbms_output.put_line(vn_error_code);
+	BEGIN 
+		SELECT error_message
+		INTO vn_error_message
+		FROM app_user_define_error
+		WHERE error_code = vn_error_code;
+		
+	EXCEPTION WHEN no_data_found THEN 
+		vn_error_message := p_error_message;
+	END;
+	
+	dbms_output.put_line(vn_error_message);
+	INSERT INTO error_log (ERROR_SEQ, PROG_NAME, ERROR_CODE, ERROR_MESSAGE, ERROR_LINE)
+	VALUES (error_seq.nextval, p_prog_name, vn_error_code, vn_error_message, p_error_line);
+
+	COMMIT;
+END;
+
+CREATE OR REPLACE PROCEDURE ch10_ins_emp2_proc(
+	p_emp_name employees.EMP_NAME%TYPE,
+	p_department_id departments.DEPARTMENT_ID%TYPE,
+	p_hire_month varchar2 )
+IS 
+	vn_employee_id employees.EMPLOYEE_ID%TYPE;
+	vd_curr_date   DATE := sysdate;
+	vn_cnt		   NUMBER := 0;
+
+	ex_invalid_depid EXCEPTION;
+	pragma exception_init (ex_invalid_depid, -20000);
+
+	ex_invalid_month EXCEPTION;
+	pragma exception_init (ex_invalid_month, -1843);
+
+	v_err_code error_log.error_code%TYPE;
+	v_err_msg error_log.error_message%TYPE;
+	v_err_line error_log.error_line%TYPE;
+BEGIN 
+	SELECT COUNT(*)
+	INTO vn_cnt
+	FROM DEPARTMENTS 
+	WHERE DEPARTMENT_ID = p_department_id;
+
+	IF vn_cnt = 0 THEN 
+		raise ex_invalid_depid;
+	END IF;
+
+	IF substr(p_hire_month, 5, 2) NOT BETWEEN '01' AND '12' THEN 
+		raise ex_invalid_month;
+	END IF;
+
+	SELECT MAX(employee_id) + 1 
+	INTO vn_employee_id
+	FROM EMPLOYEES;
+	
+	INSERT INTO EMPLOYEES ( employee_id, EMP_NAME, HIRE_DATE, DEPARTMENT_ID )
+	VALUES ( vn_employee_id, p_emp_name, to_date(p_hire_month || '01'), p_department_id );
+
+	COMMIT;
+
+EXCEPTION 
+WHEN ex_invalid_depid THEN 
+	v_err_code := sqlcode;
+	v_err_line := dbms_utility.format_error_backtrace;
+	ROLLBACK;
+	error_log_proc('ch12_ins_emp2_proc', v_err_code, v_err_msg, v_err_line);
+WHEN ex_invalid_month THEN 
+	v_err_code := sqlcode;
+--	v_err_msg := sqlerrm;
+	v_err_line := dbms_utility.format_error_backtrace;
+	ROLLBACK;
+	error_log_proc('ch12_ins_emp2_proc', v_err_code, v_err_msg, v_err_line);
+WHEN OTHERS THEN 
+	v_err_code := sqlcode;
+	v_err_msg := sqlerrm||' : others문';
+	v_err_line := dbms_utility.format_error_backtrace;
+	ROLLBACK;
+	error_log_proc('ch12_ins_emp2_proc', v_err_code, v_err_msg, v_err_line);
+END;
+
+BEGIN 
+	ch10_ins_emp2_proc('HONG', 100, '2014013');
+END;
+
+SELECT * FROM ERROR_LOG ;
+
+CREATE TABLE ch10_sales (
+	sales_month varchar2(8),
+	country_name varchar2(40),
+	prod_category varchar2(50),
+	channel_desc varchar2(20),
+	sales_amt number
+);
+
+CREATE OR REPLACE PROCEDURE iud_ch10_sales_proc (
+	p_sales_month ch10_sales.sales_month%type
+)
+IS 
+
+BEGIN 
+	INSERT INTO ch10_sales (SALES_MONTH, COUNTRY_NAME, PROD_CATEGORY, CHANNEL_DESC, SALES_AMT)
+	SELECT a.SALES_MONTH, c.COUNTRY_NAME , d.PROD_CATEGORY , e.CHANNEL_DESC , SUM(a.AMOUNT_SOLD) 
+	FROM sales a, customers b, countries c, products d, channels e
+	WHERE a.SALES_MONTH = p_sales_month
+	AND a.CUST_ID = b.CUST_ID 
+	AND b.COUNTRY_ID = c.COUNTRY_ID 
+	AND a.PROD_ID = d.PROD_ID 
+	AND a.CHANNEL_ID = e.CHANNEL_ID 
+	GROUP BY a.SALES_MONTH, c.COUNTRY_NAME , d.PROD_CATEGORY , e.CHANNEL_DESC ;
+
+	COMMIT;
+END;
+
+BEGIN 
+	iud_ch10_sales_proc('199901');
+END;
+
+SELECT a.SALES_MONTH, c.COUNTRY_NAME , d.PROD_CATEGORY , e.CHANNEL_DESC , SUM(a.AMOUNT_SOLD) 
+FROM sales a, customers b, countries c, products d, channels e
+WHERE a.SALES_MONTH = '199901'
+AND a.CUST_ID = b.CUST_ID 
+AND b.COUNTRY_ID = c.COUNTRY_ID 
+AND a.PROD_ID = d.PROD_ID 
+AND a.CHANNEL_ID = e.CHANNEL_ID 
+GROUP BY a.SALES_MONTH, c.COUNTRY_NAME , d.PROD_CATEGORY , e.CHANNEL_DESC ;
+
+SELECT COUNT(*) FROM ch10_sales;
+
+--TRUNCATE TABLE ch10_sales ;
