@@ -1,31 +1,33 @@
 package codingTest;
 
-import java.time.DayOfWeek;
-import java.time.LocalDate;
-import java.time.format.TextStyle;
-import java.util.Locale;
+import java.util.Arrays;
 
 public class ProgrammersCodingTest {
 
 	public static void main(String[] args) {
-		int a = 5;
-		int b = 24;
+		int a = 3;
 		
-		solution(a, b);
+		solution(a);
 	}
 
-	// LV1 2016년 (*너무 느림, 라이브러리 안쓰고 구현해야할 듯?)
-	public static String solution(int a, int b) {
-        String answer = "";
+	// LV2 피보나치 수 (*못풀어서 구글 참고)
+	public static int solution(int n) {
+        int answer[] = new int[n + 1];
+        System.out.println("answer : " + Arrays.toString(answer));
         
-        LocalDate date = LocalDate.of(2016, a, b);
-        System.out.println("date : " + date);
+        for (int i = 0; i <= n; i++) {
+        	if (i == 0) {
+        		answer[i] = 0;
+        	} else if (i == 1) {
+        		answer[i] = 1;
+        	} else {
+        		int sum = answer[i - 2] + answer[i - 1];
+        		System.out.println("sum : " + sum);
+        		answer[i] = sum % 1234567;
+        		System.out.println("answer 222 : " + Arrays.toString(answer));
+        	}
+        }
         
-        DayOfWeek dayOfWeek = date.getDayOfWeek();
-        
-        System.out.println(dayOfWeek.getDisplayName(TextStyle.SHORT, Locale.US).toUpperCase());
-        
-        answer = dayOfWeek.getDisplayName(TextStyle.SHORT, Locale.US).toUpperCase();
-        return answer;
+        return answer[n];
     }
 }
