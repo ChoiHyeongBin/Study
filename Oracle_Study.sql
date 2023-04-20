@@ -2011,6 +2011,10 @@ BEGIN
 	GROUP BY a.SALES_MONTH, c.COUNTRY_NAME , d.PROD_CATEGORY , e.CHANNEL_DESC ;
 
 	COMMIT;
+
+EXCEPTION WHEN OTHERS THEN 
+	dbms_output.put_line(sqlerrm);
+	ROLLBACK;
 END;
 
 BEGIN 
@@ -2019,7 +2023,7 @@ END;
 
 SELECT a.SALES_MONTH, c.COUNTRY_NAME , d.PROD_CATEGORY , e.CHANNEL_DESC , SUM(a.AMOUNT_SOLD) 
 FROM sales a, customers b, countries c, products d, channels e
-WHERE a.SALES_MONTH = '199901'
+WHERE a.SALES_MONTH = '199902'
 AND a.CUST_ID = b.CUST_ID 
 AND b.COUNTRY_ID = c.COUNTRY_ID 
 AND a.PROD_ID = d.PROD_ID 
@@ -2029,3 +2033,167 @@ GROUP BY a.SALES_MONTH, c.COUNTRY_NAME , d.PROD_CATEGORY , e.CHANNEL_DESC ;
 SELECT COUNT(*) FROM ch10_sales;
 
 --TRUNCATE TABLE ch10_sales ;
+
+
+ -- 230420
+ALTER TABLE ch10_sales ADD CONSTRAINTS pk_ch10_sales PRIMARY KEY 
+(SALES_MONTH, COUNTRY_NAME, PROD_CATEGORY, CHANNEL_DESC);
+
+ALTER TABLE ch10_sales DROP PRIMARY KEY ;
+
+CREATE TABLE ch10_country_month_sales (
+	sales_month varchar2(8),
+	country_name varchar2(40),
+	sales_amt NUMBER,
+	PRIMARY KEY (sales_month, country_name)
+);
+
+CREATE OR REPLACE PROCEDURE iud_ch10_sales_proc (
+	p_sales_month ch10_sales.sales_month%TYPE,
+	p_country_name ch10_sales.COUNTRY_NAME%TYPE
+)
+IS 
+
+BEGIN 
+	DELETE ch10_sales
+	WHERE SALES_MONTH = p_sales_month
+	AND COUNTRY_NAME = p_country_name;
+
+	INSERT INTO ch10_sales (SALES_MONTH, COUNTRY_NAME, PROD_CATEGORY, CHANNEL_DESC, SALES_AMT)
+	SELECT a.SALES_MONTH, c.COUNTRY_NAME , d.PROD_CATEGORY , e.CHANNEL_DESC , SUM(a.AMOUNT_SOLD) 
+	FROM sales a, customers b, countries c, products d, channels e
+	WHERE a.SALES_MONTH = p_sales_month
+	AND c.COUNTRY_NAME = p_country_name
+	AND a.CUST_ID = b.CUST_ID 
+	AND b.COUNTRY_ID = c.COUNTRY_ID 
+	AND a.PROD_ID = d.PROD_ID 
+	AND a.CHANNEL_ID = e.CHANNEL_ID 
+	GROUP BY a.SALES_MONTH, c.COUNTRY_NAME , d.PROD_CATEGORY , e.CHANNEL_DESC ;
+
+	UPDATE ch10_sales
+	SET SALES_AMT = 10 * TO_NUMBER(TO_CHAR(SYSDATE, 'ss'))
+	WHERE SALES_MONTH = p_sales_month
+	AND COUNTRY_NAME = p_country_name;
+
+	SAVEPOINT mysavepoint;
+
+	INSERT INTO ch10_country_month_sales
+	SELECT SALES_MONTH , COUNTRY_NAME , SUM(SALES_AMT)  
+	FROM ch10_sales
+	WHERE SALES_MONTH = p_sales_month
+	AND COUNTRY_NAME = p_country_name
+	GROUP BY SALES_MONTH , COUNTRY_NAME;
+
+EXCEPTION WHEN OTHERS THEN 
+	dbms_output.put_line(sqlerrm);
+	ROLLBACK TO mysavepoint;
+
+	COMMIT;
+END;
+
+--TRUNCATE TABLE ch10_sales ;
+SELECT DISTINCT SALES_AMT FROM ch10_sales ;
+SELECT * FROM ch10_country_month_sales ;
+
+BEGIN 
+	iud_ch10_sales_proc('199901', 'Italy');
+END;
+
+SELECT a.SALES_MONTH, c.COUNTRY_NAME , d.PROD_CATEGORY , e.CHANNEL_DESC , SUM(a.AMOUNT_SOLD) 
+FROM sales a, customers b, countries c, products d, channels e
+WHERE a.SALES_MONTH = '199901'
+AND c.COUNTRY_NAME = 'Italy'
+AND a.CUST_ID = b.CUST_ID 
+AND b.COUNTRY_ID = c.COUNTRY_ID 
+AND a.PROD_ID = d.PROD_ID 
+AND a.CHANNEL_ID = e.CHANNEL_ID 
+GROUP BY a.SALES_MONTH, c.COUNTRY_NAME , d.PROD_CATEGORY , e.CHANNEL_DESC ;
+
+SELECT SALES_MONTH , COUNTRY_NAME , SUM(SALES_AMT)  
+FROM ch10_sales
+WHERE SALES_MONTH = '199901'
+AND COUNTRY_NAME = 'Italy'
+GROUP BY SALES_MONTH , COUNTRY_NAME;
+
+CREATE TABLE ch10_departments AS 
+SELECT DEPARTMENT_ID , DEPARTMENT_NAME 
+FROM DEPARTMENTS ;
+
+ALTER TABLE ch10_departments ADD CONSTRAINTS pk_ch10_deparments PRIMARY KEY (DEPARTMENT_ID);
+
+SELECT * FROM ch10_departments ;
+
+CREATE OR REPLACE PROCEDURE ch10_iud_dep_proc (
+	p_department_id DEPARTMENTS.DEPARTMENT_ID%TYPE, 
+	p_department_name DEPARTMENTS.DEPARTMENT_NAME%TYPE,
+	p_flag char
+)
+IS 
+	vn_cnt NUMBER := 0;
+
+	ex_exist_employee EXCEPTION;
+	pragma exception_init (ex_exist_employee, -20000);
+BEGIN 
+	CASE 
+		WHEN p_flag = 'I' THEN
+			INSERT INTO ch10_departments VALUES (p_department_id, p_department_name);
+		WHEN p_flag = 'U' THEN
+			UPDATE ch10_departments 
+			SET DEPARTMENT_NAME = p_department_name
+			WHERE DEPARTMENT_ID = p_department_id;
+		WHEN p_flag = 'D' THEN
+			SELECT COUNT(*) 
+			INTO vn_cnt
+			FROM EMPLOYEES
+			WHERE DEPARTMENT_ID = p_department_id;
+			
+			IF vn_cnt > 0 THEN
+--				raise ex_exist_employee;
+				raise_application_error(-20001, '해당 부서에 할당된 사원이 존재하여, 삭제가 불가능합니다.');
+			END IF;			
+		
+			DELETE FROM ch10_departments
+			WHERE DEPARTMENT_ID = p_department_id;
+	END CASE;
+
+	COMMIT;
+
+EXCEPTION 
+WHEN dup_val_on_index THEN 
+	dbms_output.put_line('dup_val_on_index 에러 발생!');
+	dbms_output.put_line('sqlcode : ' || sqlcode);
+	dbms_output.put_line('sqlerrm : ' || sqlerrm);
+	ROLLBACK;
+WHEN ex_exist_employee THEN
+	dbms_output.put_line('sqlcode : ' || sqlcode);
+	dbms_output.put_line(sqlerrm||'해당 부서에 할당된 사원이 존재하여, 삭제가 불가능합니다.');
+	ROLLBACK;
+WHEN OTHERS THEN 
+	dbms_output.put_line('OTHERS 에러 발생!');
+	dbms_output.put_line('sqlcode : ' || sqlcode);
+	dbms_output.put_line('sqlerrm : ' || sqlerrm);
+	ROLLBACK;
+END;
+
+BEGIN 
+	ch10_iud_dep_proc('10', '총무기획부', 'D');
+END;
+
+SELECT COUNT(*) 
+FROM EMPLOYEES
+WHERE DEPARTMENT_ID = '1000'
+;
+
+DECLARE 
+	vn_department_id employees.department_id%TYPE := 80;
+BEGIN 
+	UPDATE employees
+	SET EMP_NAME = EMP_NAME 
+	WHERE DEPARTMENT_ID = vn_department_id;
+
+	dbms_output.put_line(SQL%rowcount);
+	COMMIT;
+
+END;
+
+SELECT * FROM EMPLOYEES WHERE DEPARTMENT_ID = '80' ;
