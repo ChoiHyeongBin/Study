@@ -1,33 +1,37 @@
 package codingTest;
 
-import java.util.Arrays;
+import java.util.HashSet;
+import java.util.Set;
 
 public class ProgrammersCodingTest {
 
 	public static void main(String[] args) {
-		int a = 3;
+		int[] arrNum = new int[] {3,3,3,2,2,4, 5, 6};
 		
-		solution(a);
+		solution(arrNum);
 	}
 
-	// LV2 피보나치 수 (*못풀어서 구글 참고)
-	public static int solution(int n) {
-        int answer[] = new int[n + 1];
-        System.out.println("answer : " + Arrays.toString(answer));
+	// LV1 폰켓몬
+	public static int solution(int[] nums) {
+        int answer = 0;
+        Set<Integer> set = new HashSet<Integer>();
+        int outCnt = nums.length / 2;
+        System.out.println("outCnt : " + outCnt);
         
-        for (int i = 0; i <= n; i++) {
-        	if (i == 0) {
-        		answer[i] = 0;
-        	} else if (i == 1) {
-        		answer[i] = 1;
-        	} else {
-        		int sum = answer[i - 2] + answer[i - 1];
-        		System.out.println("sum : " + sum);
-        		answer[i] = sum % 1234567;
-        		System.out.println("answer 222 : " + Arrays.toString(answer));
-        	}
+        for (int i = 0; i < nums.length; i++) {
+        	set.add(nums[i]);
         }
         
-        return answer[n];
+        System.out.println("set : " + set);
+        System.out.println("set.size() : " + set.size());
+        
+        if (set.size() > outCnt) {
+        	answer = outCnt;
+        } else {
+        	answer = set.size();
+        }
+        
+        System.out.println("answer : " + answer);
+        return answer;
     }
 }
