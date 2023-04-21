@@ -1,37 +1,71 @@
 package codingTest;
 
-import java.util.HashSet;
-import java.util.Set;
+import java.util.Stack;
 
 public class ProgrammersCodingTest {
 
 	public static void main(String[] args) {
-		int[] arrNum = new int[] {3,3,3,2,2,4, 5, 6};
+		String str = "cdcd";
 		
-		solution(arrNum);
+		solution(str);
 	}
 
-	// LV1 폰켓몬
-	public static int solution(int[] nums) {
-        int answer = 0;
-        Set<Integer> set = new HashSet<Integer>();
-        int outCnt = nums.length / 2;
-        System.out.println("outCnt : " + outCnt);
-        
-        for (int i = 0; i < nums.length; i++) {
-        	set.add(nums[i]);
-        }
-        
-        System.out.println("set : " + set);
-        System.out.println("set.size() : " + set.size());
-        
-        if (set.size() > outCnt) {
-        	answer = outCnt;
-        } else {
-        	answer = set.size();
-        }
+	// LV2 짝지어 제거하기 (*기존코드는 테스트케이스 2~8까지 시간초과)
+	public static int solution(String s) {
+		Stack<Character> stack = new Stack<>();
+		
+		for (char ch : s.toCharArray()) {
+			System.out.println("ch : " + ch);
+			
+			if (!stack.isEmpty() && stack.peek() == ch) {
+				stack.pop();
+			} else {
+				stack.push(ch);
+			}
+		}
+		
+		return stack.isEmpty() ? 1 : 0;
+	}
+
+	/* static int answer = -1;
+	public static int solution(String s) {
+        strProc(s);
         
         System.out.println("answer : " + answer);
         return answer;
     }
+	
+	public static void strProc(String s) {
+		int result = 0;
+		String[] arrStr = s.split("");
+		StringBuffer sb = new StringBuffer();
+        sb.append(s);
+        System.out.println("sb : " + sb);
+        
+        int eqCnt = 0;
+		for (int i = 0; i < arrStr.length - 1; i++) {
+        	if (arrStr[i].equals(arrStr[i + 1])) {
+        		sb.deleteCharAt(i);
+        		sb.deleteCharAt(i);
+        		eqCnt++;
+        		
+        		break;
+        	}
+        	
+        	System.out.println("중간 sb : " + sb);
+        }
+        System.out.println("최종 sb : " + sb);
+        System.out.println("최종 sb.length() : " + sb.length());
+        System.out.println();
+        
+		if (sb.length() == 0) {
+			answer = 1;
+        } else if (eqCnt == 0) {
+        	answer = 0;
+        } else {
+        	strProc(sb.toString());
+        }
+		
+		System.out.println("result : " + result);
+	} */
 }
