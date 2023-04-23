@@ -2197,3 +2197,169 @@ BEGIN
 END;
 
 SELECT * FROM EMPLOYEES WHERE DEPARTMENT_ID = '80' ;
+
+
+ -- 230423
+DECLARE 
+	vs_emp_name employees.emp_name%TYPE;
+	
+	CURSOR cur_emp_dep (cp_department_id employees.department_id%type)
+	IS 
+	SELECT EMP_NAME 
+	FROM employees 
+	WHERE DEPARTMENT_ID = cp_department_id;
+BEGIN 
+	OPEN cur_emp_dep (90);
+
+	LOOP 
+		FETCH cur_emp_dep INTO vs_emp_name;
+	
+		EXIT WHEN cur_emp_dep%notfound;
+	
+		dbms_output.put_line(vs_emp_name);
+	END LOOP;
+	
+	CLOSE cur_emp_dep;
+END;
+
+SELECT EMP_NAME 
+FROM employees 
+WHERE DEPARTMENT_ID = '90';
+
+DECLARE 
+	CURSOR cur_emp_dep (cp_department_id employees.department_id%type)
+	IS 
+	SELECT EMP_NAME 
+	FROM employees 
+	WHERE DEPARTMENT_ID = cp_department_id;
+BEGIN 
+	FOR emp_rec IN cur_emp_dep(90)
+	LOOP
+		dbms_output.put_line(emp_rec.emp_name);
+	END LOOP;
+	
+END;
+
+DECLARE 
+
+BEGIN 
+	FOR emp_rec IN (
+		SELECT EMP_NAME 
+		FROM employees 
+		WHERE DEPARTMENT_ID = 90
+	)
+	LOOP
+		dbms_output.put_line(emp_rec.emp_name);
+	END LOOP;
+END;
+
+DECLARE 
+	vs_emp_name employees.emp_name%TYPE;
+	
+	TYPE emp_dep_curtype IS REF CURSOR;
+	emp_dep_curvar emp_dep_curtype;
+BEGIN 
+	OPEN emp_dep_curvar FOR SELECT EMP_NAME 
+							FROM EMPLOYEES 
+							WHERE DEPARTMENT_ID = 90;
+							
+	LOOP 
+		FETCH emp_dep_curvar INTO vs_emp_name;
+	
+		EXIT WHEN emp_dep_curvar%notfound;
+	
+		dbms_output.put_line(vs_emp_name);
+	END LOOP;
+END;
+
+ -- 빌트인 커서 타입
+DECLARE 
+	vs_emp_name employees.emp_name%TYPE;
+	
+	emp_dep_curvar sys_refcursor;
+BEGIN 
+	OPEN emp_dep_curvar FOR SELECT EMP_NAME 
+							FROM EMPLOYEES 
+							WHERE DEPARTMENT_ID = 90;
+							
+	LOOP 
+		FETCH emp_dep_curvar INTO vs_emp_name;
+	
+		EXIT WHEN emp_dep_curvar%notfound;
+	
+		dbms_output.put_line(vs_emp_name);
+	END LOOP;
+END;
+
+ -- 커서 변수를 매개변수로 전달하기
+DECLARE 
+	emp_dep_curvar sys_refcursor;
+
+	vs_emp_name employees.emp_name%TYPE;
+
+	PROCEDURE test_cursor_argu (p_curvar IN OUT sys_refcursor)
+	IS 
+		c_temp_curvar sys_refcursor;
+	BEGIN 
+		OPEN c_temp_curvar FOR
+		SELECT EMP_NAME 
+		FROM EMPLOYEES 
+		WHERE DEPARTMENT_ID = 90;
+	
+		p_curvar := c_temp_curvar;
+	END;
+	
+BEGIN 
+	test_cursor_argu(emp_dep_curvar);
+
+	LOOP
+		FETCH emp_dep_curvar INTO vs_emp_name;
+		EXIT WHEN emp_dep_curvar%notfound;
+		dbms_output.put_line(vs_emp_name);
+	END LOOP;	
+END;
+
+ -- 커서 표현식
+SELECT d.DEPARTMENT_NAME ,
+	   CURSOR (
+	       SELECT e.EMP_NAME 
+	       FROM EMPLOYEES e
+	       WHERE e.DEPARTMENT_ID = d.DEPARTMENT_ID 
+	   ) AS emp_name 
+FROM DEPARTMENTS d 
+WHERE d.DEPARTMENT_ID = 90
+;
+
+ -- 익명 블록에서 커서 표현식 사용
+DECLARE 
+	CURSOR mytest_cursor IS 
+	SELECT d.DEPARTMENT_NAME ,
+		   CURSOR (
+		       SELECT e.EMP_NAME 
+		       FROM EMPLOYEES e
+		       WHERE e.DEPARTMENT_ID = d.DEPARTMENT_ID 
+		   ) AS emp_name 
+	FROM DEPARTMENTS d 
+	WHERE d.DEPARTMENT_ID = 90;
+
+	vs_department_name DEPARTMENTS.department_name%TYPE;
+
+	c_emp_name sys_refcursor;
+
+	vs_emp_name EMPLOYEES.emp_name%TYPE;
+BEGIN 
+	OPEN mytest_cursor;
+
+	LOOP
+		FETCH mytest_cursor INTO vs_department_name, c_emp_name;
+		EXIT WHEN mytest_cursor%notfound;
+		dbms_output.put_line('부서명 : '||vs_department_name);
+	
+		LOOP
+			FETCH c_emp_name INTO vs_emp_name;
+			EXIT WHEN c_emp_name%notfound;
+		
+			dbms_output.put_line('    사원명 : '||vs_emp_name);
+		END LOOP;
+	END LOOP;
+END;
