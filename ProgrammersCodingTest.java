@@ -1,71 +1,55 @@
 package codingTest;
 
-import java.util.Stack;
+import java.util.Arrays;
+import java.util.HashMap;
 
 public class ProgrammersCodingTest {
 
 	public static void main(String[] args) {
-		String str = "cdcd";
+		String[] arrPlayers = new String[] {"mumu", "soe", "poe", "kai", "mine"};
+		String[] arrCallings = new String[] {"kai", "kai", "mine", "mine"};
 		
-		solution(str);
+		solution(arrPlayers, arrCallings);
 	}
 
-	// LV2 짝지어 제거하기 (*기존코드는 테스트케이스 2~8까지 시간초과)
-	public static int solution(String s) {
-		Stack<Character> stack = new Stack<>();
-		
-		for (char ch : s.toCharArray()) {
-			System.out.println("ch : " + ch);
-			
-			if (!stack.isEmpty() && stack.peek() == ch) {
-				stack.pop();
-			} else {
-				stack.push(ch);
-			}
-		}
-		
-		return stack.isEmpty() ? 1 : 0;
-	}
-
-	/* static int answer = -1;
-	public static int solution(String s) {
-        strProc(s);
+	// LV1 달리기 경주
+	public static String[] solution(String[] players, String[] callings) {
+        String[] answer = new String[players.length];
         
-        System.out.println("answer : " + answer);
-        return answer;
-    }
-	
-	public static void strProc(String s) {
-		int result = 0;
-		String[] arrStr = s.split("");
-		StringBuffer sb = new StringBuffer();
-        sb.append(s);
-        System.out.println("sb : " + sb);
+        HashMap<String, Integer> mappedByPlayer = new HashMap<>();
+        HashMap<Integer, String> mappedByRank = new HashMap<>();
         
-        int eqCnt = 0;
-		for (int i = 0; i < arrStr.length - 1; i++) {
-        	if (arrStr[i].equals(arrStr[i + 1])) {
-        		sb.deleteCharAt(i);
-        		sb.deleteCharAt(i);
-        		eqCnt++;
-        		
-        		break;
-        	}
-        	
-        	System.out.println("중간 sb : " + sb);
+        for (int i = 0; i < players.length; i++) {
+        	mappedByPlayer.put(players[i], i);
+        	mappedByRank.put(i, players[i]);
         }
-        System.out.println("최종 sb : " + sb);
-        System.out.println("최종 sb.length() : " + sb.length());
+        System.out.println("mappedByPlayer : " + mappedByPlayer);
+        System.out.println("mappedByRank : " + mappedByRank);
         System.out.println();
         
-		if (sb.length() == 0) {
-			answer = 1;
-        } else if (eqCnt == 0) {
-        	answer = 0;
-        } else {
-        	strProc(sb.toString());
+        for (int i = 0; i < callings.length; i++) {
+        	int currentRank = mappedByPlayer.get(callings[i]);	// 추월 유저 순위
+        	String player = mappedByRank.get(currentRank);
+        	System.out.println("currentRank : " + currentRank);
+        	System.out.println("player : " + player);
+        	
+        	String frontPlayer = mappedByRank.get(currentRank - 1);
+        	
+        	mappedByPlayer.put(player, currentRank - 1);
+        	mappedByPlayer.put(frontPlayer, currentRank);
+        	
+        	mappedByRank.put(currentRank - 1, player);
+        	mappedByRank.put(currentRank, frontPlayer);
         }
-		
-		System.out.println("result : " + result);
-	} */
+        System.out.println("mappedByPlayer 222 : " + mappedByPlayer);
+        System.out.println("mappedByRank 222 : " + mappedByRank);
+        
+        for (int i = 0; i < players.length; i++) {
+        	answer[i] = mappedByRank.get(i);
+        }
+        
+        System.out.println(Arrays.toString(answer));
+        
+        return answer;
+    }
 }
