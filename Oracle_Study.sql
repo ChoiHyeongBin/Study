@@ -2363,3 +2363,163 @@ BEGIN
 		END LOOP;
 	END LOOP;
 END;
+
+
+ -- 230427
+DECLARE 
+	TYPE depart_rect IS RECORD (
+		department_id	number(6),
+		department_name varchar2(80),
+		parent_id		number(6),
+		manager_id		number(6)
+	);
+
+	vr_dep depart_rect;
+BEGIN 
+	
+END;
+
+DECLARE 
+	TYPE depart_rect IS RECORD (
+		department_id	departments.department_id%type,
+		department_name departments.department_name%type,
+		parent_id		departments.parent_id%type,
+		manager_id		departments.manager_id%type
+	);
+
+	vr_dep depart_rect;
+
+	vr_dep2 depart_rect;
+BEGIN 
+	vr_dep.department_id := 999;
+	vr_dep.department_name := '테스트부서';
+	vr_dep.parent_id := 100;
+	vr_dep.manager_id := NULL;
+
+	vr_dep2 := vr_dep;
+
+	dbms_output.put_line('vr_dep2.department_id : ' || vr_dep2.department_id);
+	dbms_output.put_line('vr_dep2.department_name : ' || vr_dep2.department_name);
+	dbms_output.put_line('vr_dep2.parent_id : ' || vr_dep2.parent_id);
+	dbms_output.put_line('vr_dep2.manager_id : ' || vr_dep2.manager_id);
+END;
+
+CREATE TABLE ch11_dep AS 
+SELECT DEPARTMENT_ID , DEPARTMENT_NAME , PARENT_ID , MANAGER_ID 
+FROM DEPARTMENTS ;
+
+TRUNCATE TABLE ch11_dep;
+
+DECLARE  
+	TYPE depart_rect IS RECORD (
+		department_id	departments.department_id%type,
+		department_name departments.department_name%type,
+		parent_id		departments.parent_id%type,
+		manager_id		departments.manager_id%type
+	);
+
+	vr_dep depart_rect;
+BEGIN 
+	vr_dep.department_id := 999;
+	vr_dep.department_name := '테스트부서';
+	vr_dep.parent_id := 100;
+	vr_dep.manager_id := NULL;
+
+	INSERT INTO ch11_dep 
+	VALUES (vr_dep.department_id, vr_dep.department_name, vr_dep.parent_id, vr_dep.manager_id);
+
+	INSERT INTO ch11_dep VALUES vr_dep;
+
+	COMMIT;
+END;
+
+SELECT * FROM ch11_dep ;
+
+CREATE TABLE ch11_dep2 AS 
+SELECT *
+FROM DEPARTMENTS ;
+
+TRUNCATE TABLE ch11_dep2 ;
+
+DECLARE 
+	vr_dep departments%rowtype;
+BEGIN 
+	SELECT *
+	INTO vr_dep
+	FROM DEPARTMENTS 
+	WHERE DEPARTMENT_ID = 20;
+
+	INSERT INTO ch11_dep2 VALUES vr_dep;
+
+	COMMIT;
+END;
+
+SELECT * FROM ch11_dep2 ;
+
+ -- 커서형 레코드
+DECLARE 
+	CURSOR c1 IS 
+	SELECT DEPARTMENT_ID , DEPARTMENT_NAME , PARENT_ID , MANAGER_ID 
+	FROM DEPARTMENTS ;
+
+	vr_dep c1%rowtype;
+BEGIN 
+	DELETE ch11_dep;
+
+	OPEN c1;
+
+	LOOP
+		FETCH c1 INTO vr_dep;
+	
+		EXIT WHEN c1%notfound;
+		INSERT INTO ch11_dep VALUES vr_dep;
+	END LOOP;
+	
+	COMMIT;
+END;
+
+SELECT * FROM ch11_dep ;
+
+ -- 레코드 변수로 update
+DECLARE  
+	vr_dep ch11_dep%rowtype;
+BEGIN 
+	vr_dep.department_id := 20;
+	vr_dep.department_name := '테스트';
+	vr_dep.parent_id := 10;
+	vr_dep.manager_id := 200;
+
+	UPDATE ch11_dep
+	SET ROW = vr_dep
+	WHERE department_id = vr_dep.department_id;
+
+	COMMIT;
+END;
+
+ -- 중첩 레코드
+DECLARE 
+	TYPE dep_rec IS RECORD (
+		dep_id		departments.department_id%TYPE,
+		dep_name 	departments.department_name%type
+	);
+
+	TYPE emp_rec IS RECORD (
+		emp_id		employees.employee_id%TYPE,
+		emp_name 	employees.emp_name%TYPE,
+		dep			dep_rec
+	);
+
+	vr_emp_rec emp_rec;
+BEGIN 
+	SELECT a.EMPLOYEE_ID , a.EMP_NAME , a.DEPARTMENT_ID , b.DEPARTMENT_NAME 
+	INTO vr_emp_rec.emp_id, vr_emp_rec.emp_name, vr_emp_rec.dep.dep_id, vr_emp_rec.dep.dep_name
+	FROM EMPLOYEES a,
+		DEPARTMENTS b
+	WHERE a.EMPLOYEE_ID = 100
+	AND a.DEPARTMENT_ID = b.DEPARTMENT_ID;
+
+	dbms_output.put_line('emp_id : ' || vr_emp_rec.emp_id);
+	dbms_output.put_line('emp_name : ' || vr_emp_rec.emp_name);
+	dbms_output.put_line('dep_id : ' || vr_emp_rec.dep.dep_id);
+	dbms_output.put_line('dep_name : ' || vr_emp_rec.dep.dep_name);
+END;
