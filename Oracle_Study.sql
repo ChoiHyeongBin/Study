@@ -2523,3 +2523,206 @@ BEGIN
 	dbms_output.put_line('dep_id : ' || vr_emp_rec.dep.dep_id);
 	dbms_output.put_line('dep_name : ' || vr_emp_rec.dep.dep_name);
 END;
+
+
+ -- 230428
+ -- 컬렉션: 연관 배열
+DECLARE 
+	TYPE av_type IS TABLE OF varchar2(40)
+					INDEX BY pls_integer;
+				
+	vav_test av_type;
+BEGIN 
+	vav_test(10) := '10에 대한 값';
+	vav_test(20) := '20에 대한 값';
+
+	dbms_output.put_line(vav_test(10));
+	dbms_output.put_line(vav_test(20));
+END;
+
+ -- VARRAY
+DECLARE 
+	TYPE va_type IS varray(5) OF varchar2(20);
+
+	vva_test va_type;
+
+	vn_cnt NUMBER := 0;
+BEGIN 
+	vva_test := va_type('FIRST', 'SECOND', 'THIRD', '', '');
+
+	LOOP
+		vn_cnt := vn_cnt + 1;
+		IF vn_cnt > 5 THEN
+			EXIT;
+		END IF;
+	
+		dbms_output.put_line(vva_test(vn_cnt));
+	END LOOP;
+
+	dbms_output.put_line(chr(10));	-- 줄바꿈
+
+	vva_test(2) := 'TEST';
+	vva_test(4) := 'FOURTH';
+
+	vn_cnt := 0;
+	LOOP
+		vn_cnt := vn_cnt + 1;
+		IF vn_cnt > 5 THEN
+			EXIT;
+		END IF;
+	
+		dbms_output.put_line(vva_test(vn_cnt));
+	END LOOP;
+END;
+
+ -- 중첩 테이블
+DECLARE 
+	TYPE nt_typ IS TABLE OF varchar2(10);
+
+	vnt_test nt_typ;
+BEGIN 
+	vnt_test := nt_typ('FIRST', 'SECOND', 'THIRD');
+
+	dbms_output.put_line(vnt_test(1));
+	dbms_output.put_line(vnt_test(2));
+	dbms_output.put_line(vnt_test(3));
+END;
+
+ -- 컬렉션 DELETE 메소드
+DECLARE 
+	TYPE av_type IS TABLE OF varchar2(40)	-- 값 타입
+					INDEX BY varchar2(10);	-- 인덱스 타입
+					
+	vav_test av_type;
+
+	vn_cnt NUMBER := 0;
+BEGIN 
+	vav_test('A') := '10에 대한 값';
+	vav_test('B') := '20에 대한 값';
+	vav_test('C') := '20에 대한 값';
+
+	vn_cnt := vav_test.count;
+	dbms_output.put_line('삭제 전 요소 개수: ' || vn_cnt);
+	vav_test.delete('A', 'B');
+
+	vn_cnt := vav_test.count;
+
+	dbms_output.put_line('삭제 후 요소 개수: ' || vn_cnt);
+END;
+
+ -- TRIM 메소드
+DECLARE 
+	TYPE nt_type IS TABLE OF varchar2(10);
+
+	vnt_test nt_type;
+BEGIN 
+	vnt_test := nt_type('FIRST', 'SECOND', 'THIRD', 'FOURTH', 'FIFTH');
+
+	vnt_test.trim(2);
+
+	dbms_output.put_line(vnt_test(1));
+	dbms_output.put_line(vnt_test(2));
+	dbms_output.put_line(vnt_test(3));
+	dbms_output.put_line(vnt_test(4));
+
+EXCEPTION WHEN OTHERS THEN 
+	dbms_output.put_line(sqlerrm);
+	dbms_output.put_line(DBMS_utility.format_error_backtrace);
+END;
+
+ -- EXTEND 메소드
+DECLARE 
+	TYPE nt_type IS TABLE OF varchar2(10);
+
+	vnt_test nt_type;
+BEGIN 
+	vnt_test := nt_type('FIRST', 'SECOND', 'THIRD');
+
+	vnt_test.extend;
+	vnt_test(4) := 'fourth';
+	dbms_output.put_line(vnt_test(4));
+
+	vnt_test.extend(2, 1);
+	dbms_output.put_line('첫번쨰 : ' || vnt_test(1));
+
+	dbms_output.put_line('추가한 요소1 : ' || vnt_test(5));
+	dbms_output.put_line('추가한 요소2 : ' || vnt_test(6));
+END;
+
+ -- FIRST, LAST 메소드
+DECLARE 
+	TYPE nt_typ IS TABLE OF varchar2(10);
+
+	vnt_test nt_typ;
+BEGIN 
+	vnt_test := nt_typ('FIRST', 'SECOND', 'THIRD', 'FOURTH', 'FIFTH');
+
+	FOR i IN vnt_test.FIRST..vnt_test.LAST 
+	LOOP
+		dbms_output.put_line(i || '번쨰 요소 값: ' || vnt_test(i));
+	END LOOP;
+	
+END;
+
+ -- COUNT, LIMIT 메소드
+DECLARE 
+	TYPE nt_typ IS TABLE OF varchar2(10);	-- 중첩 테이블
+	TYPE va_type IS varray(5) OF varchar2(10);
+
+	vnt_test nt_typ;
+	vva_test va_type;
+BEGIN 
+	vnt_test := nt_typ('FIRST', 'SECOND', 'THIRD', 'FOURTH');
+	vva_test := va_type('첫번쨰', '두번쨰', '세번쨰', '네번쨰');
+
+	dbms_output.put_line('varray count: ' || vva_test.count);
+	dbms_output.put_line('중첩 테이블 count: ' || vnt_test.count);
+
+	dbms_output.put_line('varray limit: ' || vva_test.limit);
+	dbms_output.put_line('중첩 테이블 limit: ' || vnt_test.limit);
+END;
+
+ -- PRIOR, NEXT 메소드
+DECLARE 
+	TYPE va_type IS varray(5) OF varchar2(10);
+
+	vva_test va_type;
+BEGIN 
+	vva_test := va_type('첫번쨰', '두번쨰', '세번쨰', '네번쨰');
+
+	dbms_output.put_line('FIRST의 PRIOR : ' || vva_test.PRIOR(vva_test.first));
+	dbms_output.put_line('last의 NEXT : ' || vva_test.NEXT(vva_test.last));
+
+	dbms_output.put_line('인덱스3의 PRIOR: ' || vva_test.PRIOR(3));
+	dbms_output.put_line('인덱스3의 NEXT: ' || vva_test.NEXT(3));
+END;
+
+ -- 사용자 정의 타입
+CREATE OR REPLACE TYPE ch11_va_type IS varray(5) OF varchar2(20);
+
+CREATE OR REPLACE TYPE ch11_nt_type IS TABLE OF varchar2(20);
+
+DECLARE 
+	vva_test ch11_va_type;
+	vnt_test ch11_nt_type;
+BEGIN 
+	vva_test := ch11_va_type('FIRST', 'SECOND', 'THIRD', '', '');
+	vnt_test := ch11_nt_type('FIRST', 'SECOND', 'THIRD', '');
+
+	dbms_output.put_line(vva_test(4));
+	dbms_output.put_line(vnt_test(1));
+END;
+
+ -- VARRAY 타입인 요소로 구성된 VARRAY 타입의 컬렉션
+DECLARE 
+	TYPE va_type1 IS varray(5) OF NUMBER;
+
+	TYPE va_type11 IS varray(3) OF va_type1;
+
+	va_test va_type11;
+BEGIN 
+	va_test := va_type11(va_type1(1, 2, 3, 4, 5), va_type1(2, 4, 6, 8, 10), va_type1(3, 6, 9, 12, 15));
+			  
+	dbms_output.put_line('2곱하기 3은 ' || va_test(2)(3));
+	dbms_output.put_line('3곱하기 5은 ' || va_test(3)(5));
+END;
