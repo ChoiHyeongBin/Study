@@ -2726,3 +2726,132 @@ BEGIN
 	dbms_output.put_line('2곱하기 3은 ' || va_test(2)(3));
 	dbms_output.put_line('3곱하기 5은 ' || va_test(3)(5));
 END;
+
+
+ -- 230502
+ -- 레코드 타입을 요소로 가진 중첩 테이블
+DECLARE 
+	TYPE nt_type IS TABLE OF EMPLOYEES%rowtype;
+
+	vnt_test nt_type;
+BEGIN 
+	vnt_test := nt_type();
+	vnt_test.extend;	-- 요소 1개 추가 (NULL 항목)
+
+	SELECT *
+	INTO vnt_test(1)
+	FROM EMPLOYEES
+	WHERE EMPLOYEE_ID = 100;
+
+	dbms_output.put_line(vnt_test(1).employee_id);
+	dbms_output.put_line(vnt_test(1).EMP_NAME);
+END;
+
+ -- 레코드 타입을 요소로 가진 중첩 테이블 2
+DECLARE 
+	TYPE nt_type IS TABLE OF EMPLOYEES%rowtype;
+
+	vnt_test nt_type;
+BEGIN 
+	vnt_test := nt_type();
+	
+	FOR rec IN (SELECT * FROM EMPLOYEEs)
+	LOOP 
+		vnt_test.extend;
+		vnt_test(vnt_test.last) := rec;
+	END LOOP;
+	
+	FOR i IN vnt_test.FIRST..vnt_test.LAST
+	loop
+		dbms_output.put_line(vnt_test(i).employee_id || ' - ' || vnt_test(i).EMP_NAME);
+	END LOOP;
+END;
+
+ -- 한 대륙에 여러 국가가 있는 사용자 정의 타입을 생성함
+CREATE OR REPLACE TYPE country_var IS varray(7) OF varchar2(30);
+
+CREATE TABLE ch11_continent(
+	continent varchar2(50),
+	country_nm country_var
+);
+
+DECLARE  
+	
+BEGIN 
+	INSERT INTO ch11_continent
+	VALUES ('아시아', country_var('한국', '중국', '일본'));
+
+	INSERT INTO ch11_continent
+	VALUES ('북아메리카', country_var('미국', '캐나다', '멕시코'));
+
+	INSERT INTO ch11_continent
+	VALUES ('유럽', country_var('영국', '프랑스', '독일', '스위스'));
+
+	COMMIT;
+END;
+
+ -- country_var 타입 변수를 생성해 유럽의 다른 국가를 집어 넣은 뒤, 위에서 입력한 국가를 통째로 변경
+DECLARE 
+	new_country country_var := country_var('이탈리아', '스페인', '네덜란드', '체코', '포르투갈');
+
+	country_list country_var;
+BEGIN 
+	UPDATE ch11_continent
+	SET country_nm = new_country
+	WHERE continent = '유럽';
+
+	COMMIT;
+
+	SELECT country_nm
+	INTO country_list
+	FROM ch11_continent
+	WHERE continent = '유럽';
+
+	FOR i IN country_list.FIRST..country_list.LAST
+	LOOP
+		dbms_output.put_line('유럽국가명 = ' || country_list(i));
+	END LOOP;
+END;
+
+SELECT * FROM ch11_continent ;
+
+ -- 테이블 컬럼 타입으로 중첩 테이블 사용하기
+CREATE OR REPLACE TYPE country_nt IS TABLE OF varchar2(30);
+
+CREATE TABLE ch11_continent_nt(
+	continent varchar2(50),
+	country_nm country_nt
+)
+nested TABLE country_nm store AS country_nm_nt;
+
+DECLARE 
+	new_country country_nt := country_nt('이탈리아', '스페인', '네덜란드', '체코', '포르투갈');
+	country_list country_nt;
+BEGIN 
+	INSERT INTO ch11_continent_nt
+	VALUES ('아시아', country_nt('한국', '중국', '일본'));
+
+	INSERT INTO ch11_continent_nt
+	VALUES ('북아메리카', country_nt('미국', '캐나다', '멕시코'));
+
+	INSERT INTO ch11_continent_nt
+	VALUES ('유럽', country_nt('영국', '프랑스', '독일', '스위스'));
+
+	UPDATE ch11_continent_nt
+	SET country_nm = new_country
+	WHERE continent = '유럽';
+
+	COMMIT;
+
+	SELECT country_nm
+	INTO country_list
+	FROM ch11_continent_nt
+	WHERE continent = '유럽';
+
+	FOR i IN country_list.FIRST..country_list.LAST
+	LOOP
+		dbms_output.put_line('유럽국가명 = ' || country_list(i));
+	END LOOP;
+END;
+
+SELECT * FROM ch11_continent_nt ;
