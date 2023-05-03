@@ -2855,3 +2855,228 @@ BEGIN
 END;
 
 SELECT * FROM ch11_continent_nt ;
+
+
+ -- 230503
+SELECT * FROM ch11_continent ;
+
+ -- 컬렉션에 들어있는 값 추출하기
+SELECT CONTINENT , b.*
+FROM ch11_continent a, table(a.COUNTRY_NM) b
+WHERE CONTINENT = '유럽'
+;
+
+SELECT *
+FROM table(
+	SELECT d.country_nm
+	FROM ch11_continent_nt d
+	WHERE d.CONTINENT = '유럽'
+)
+;
+
+ -- 중첩 테이블로 기존 컬럼에 새로운 요소값 추가
+DECLARE 
+	country_list country_nt;
+BEGIN 
+	SELECT country_nm
+	INTO country_list
+	FROM ch11_continent_nt
+	WHERE continent = '유럽';
+
+	FOR i IN country_list.FIRST..country_list.LAST
+	LOOP
+		dbms_output.put_line('유럽국가명(OLD) = ' || country_list(i));
+	END LOOP;
+	
+	INSERT INTO table(
+		SELECT d.country_nm
+		FROM ch11_continent_nt d
+		WHERE d.CONTINENT = '유럽')
+	VALUES ('벨기에');
+
+	COMMIT;
+
+	dbms_output.put_line('-----------------------------');
+
+	SELECT country_nm
+	INTO country_list
+	FROM ch11_continent_nt
+	WHERE continent = '유럽'; 
+	
+	FOR i IN country_list.FIRST..country_list.LAST
+	LOOP
+		dbms_output.put_line('유럽국가명(NEW) = ' || country_list(i));
+	END LOOP;
+END;
+
+ -- 중첩 테이블로 기존 요소 값 변경
+DECLARE 
+	country_list country_nt;
+BEGIN 
+	UPDATE TABLE(
+		SELECT d.country_nm
+		FROM ch11_continent_nt d
+		WHERE d.CONTINENT = '유럽') t
+	SET value(t) = '영국'
+	WHERE t.column_value = '이탈리아';
+	
+	COMMIT;
+	
+	SELECT country_nm
+	INTO country_list
+	FROM ch11_continent_nt
+	WHERE continent = '유럽';
+
+	FOR i IN country_list.FIRST..country_list.LAST
+	LOOP
+		dbms_output.put_line('유럽국가명(NEW) = ' || country_list(i));
+	END LOOP;
+END;
+
+ -- 중첩 테이블로 DELETE 작업
+DECLARE 
+	country_list country_nt;
+BEGIN 
+	DELETE FROM table(
+		SELECT d.country_nm
+		FROM ch11_continent_nt d
+		WHERE d.CONTINENT = '유럽') t
+	WHERE t.column_value = '영국';
+
+	COMMIT;
+	
+	SELECT country_nm
+	INTO country_list
+	FROM ch11_continent_nt
+	WHERE continent = '유럽';
+
+	FOR i IN country_list.FIRST..country_list.LAST
+	LOOP
+		dbms_output.put_line('유럽국가명(NEW) = ' || country_list(i));
+	END LOOP;
+END;
+
+ -- Self-Check 1
+ -- 부서별 계층형 쿼리
+SELECT DEPARTMENT_ID , LPAD(' ', 3 * (LEVEL - 1)) || DEPARTMENT_NAME , LEVEL
+FROM DEPARTMENTS
+START WITH parent_id IS NULL 
+CONNECT BY PRIOR DEPARTMENT_ID = PARENT_ID 
+;
+
+ -- WITH문을 이용한 부서별 계층형 쿼리
+WITH DEPARTMENTS_hierarchy (DEPARTMENT_ID, DEPARTMENT_NAME, lv) AS (
+	SELECT 
+		  DEPARTMENT_ID 
+		, DEPARTMENT_NAME 
+		, 1 AS lv
+	FROM DEPARTMENTS
+	WHERE PARENT_ID IS NULL
+	UNION ALL 
+	SELECT 
+		  b.DEPARTMENT_ID 
+		, LPAD(' ', 3 * ((a.lv + 1) - 1)) || b.DEPARTMENT_NAME 
+		, a.lv + 1 AS lv
+	FROM DEPARTMENTS_hierarchy a
+	LEFT OUTER JOIN DEPARTMENTS b
+		ON a.DEPARTMENT_ID = b.PARENT_ID 
+	WHERE b.DEPARTMENT_ID IS NOT NULL
+)
+SEARCH DEPTH FIRST BY DEPARTMENT_ID SET sort_order
+SELECT 
+	t1.DEPARTMENT_ID
+	, t1.DEPARTMENT_NAME
+	, t1.lv
+FROM DEPARTMENTS_hierarchy t1
+;
+
+ -- 커서와 반복문을 사용한 계층형 쿼리 
+ -- (*'Result Set 변수 또는 질의의 리턴 유형이 일치하지 않습니다' 에러 발생)
+ -- (*WITH문 리턴값이 변수 값이랑 안 맞는 이유를 모르겠다.)
+DECLARE 
+--	TYPE dep_curtype IS REF CURSOR;
+--	dep_curvar dep_curtype;
+	dep_curvar sys_refcursor;
+
+	vs_department_id DEPARTMENTS.DEPARTMENT_ID%TYPE;
+	vs_department_name DEPARTMENTS.DEPARTMENT_NAME%TYPE;
+	vs_lv char(1);
+
+	PROCEDURE my_dep_hier_proc(p_curvar IN OUT dep_curtype)
+	IS 
+		c_temp_cursor dep_curtype;
+	BEGIN 
+		OPEN c_temp_cursor FOR 
+		-------------------- 참조 테이블 시작 ----------------
+--		SELECT DEPARTMENT_ID 
+--		FROM DEPARTMENTS d ;
+		WITH DEPARTMENTS_hierarchy (DEPARTMENT_ID, DEPARTMENT_NAME, lv) AS (
+			SELECT 
+				  DEPARTMENT_ID 
+				, DEPARTMENT_NAME 
+				, 1 AS lv
+			FROM DEPARTMENTS
+			WHERE PARENT_ID IS NULL
+			UNION ALL 
+			SELECT 
+				  b.DEPARTMENT_ID 
+				, LPAD(' ', 3 * ((a.lv + 1) - 1)) || b.DEPARTMENT_NAME 
+				, a.lv + 1 AS lv
+			FROM DEPARTMENTS_hierarchy a
+			LEFT OUTER JOIN DEPARTMENTS b
+				ON a.DEPARTMENT_ID = b.PARENT_ID 
+			WHERE b.DEPARTMENT_ID IS NOT NULL
+		)
+		SEARCH DEPTH FIRST BY DEPARTMENT_ID SET sort_order
+		SELECT 
+			CAST(t1.DEPARTMENT_ID AS NUMBER(6, 0)) AS DEPARTMENT_ID
+			, t1.DEPARTMENT_NAME
+			, t1.lv
+		FROM DEPARTMENTS_hierarchy t1;
+		-------------------- 참조 테이블 끝 ----------------
+		
+		p_curvar := c_temp_cursor;
+	END;	
+BEGIN 
+	my_dep_hier_proc(dep_curvar);
+
+	LOOP
+		FETCH dep_curvar INTO vs_department_id;
+		EXIT WHEN dep_curvar%notfound;
+		dbms_output.put_line('부서번호: '||vs_department_id);
+	END LOOP;	
+END;
+
+ -- 커서, 반복문으로 억지로 구현..(프로시저를 못씀)
+DECLARE 
+
+BEGIN 
+	FOR emp_rec IN (
+		WITH DEPARTMENTS_hierarchy (DEPARTMENT_ID, DEPARTMENT_NAME, lv) AS (
+			SELECT 
+				  DEPARTMENT_ID 
+				, DEPARTMENT_NAME 
+				, 1 AS lv
+			FROM DEPARTMENTS
+			WHERE PARENT_ID IS NULL
+			UNION ALL 
+			SELECT 
+				  b.DEPARTMENT_ID 
+				, LPAD(' ', 3 * ((a.lv + 1) - 1)) || b.DEPARTMENT_NAME 
+				, a.lv + 1 AS lv
+			FROM DEPARTMENTS_hierarchy a
+			LEFT OUTER JOIN DEPARTMENTS b
+				ON a.DEPARTMENT_ID = b.PARENT_ID 
+			WHERE b.DEPARTMENT_ID IS NOT NULL
+		)
+		SEARCH DEPTH FIRST BY DEPARTMENT_ID SET sort_order
+		SELECT 
+			CAST(t1.DEPARTMENT_ID AS NUMBER(6, 0)) AS DEPARTMENT_ID
+			, t1.DEPARTMENT_NAME
+			, t1.lv
+		FROM DEPARTMENTS_hierarchy t1
+	)
+	LOOP
+		dbms_output.put_line('부서번호: '||emp_rec.DEPARTMENT_ID||' 부서명: '||emp_rec.DEPARTMENT_NAME||' LV: '||emp_rec.lv);
+	END LOOP;
+END;
