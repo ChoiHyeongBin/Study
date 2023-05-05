@@ -3232,3 +3232,124 @@ SELECT DEPARTMENT_NAME
 FROM DEPARTMENTS 
 WHERE DEPARTMENT_ID = 50
 ;
+
+ -- 패키지 선언부
+CREATE OR REPLACE PACKAGE hr_pkg IS 
+
+	FUNCTION fn_get_emp_name(pn_employee_id IN number)
+	RETURN varchar2;
+	
+	PROCEDURE new_emp_proc(ps_emp_name IN varchar2, pd_hire_date IN varchar2);
+	
+	PROCEDURE retire_emp_proc(pn_employee_id IN number);
+	
+	 -- 사번을 입력받아 부서명을 반환하는 함수
+	FUNCTION fn_get_dep_name(pn_employee_id IN number)
+		RETURN varchar2;
+
+END hr_pkg;
+
+ -- 패키지 본문
+CREATE OR REPLACE PACKAGE BODY hr_pkg IS 
+
+	FUNCTION fn_get_emp_name(pn_employee_id IN number)
+		RETURN varchar2
+	IS 
+		vs_emp_name employees.EMP_NAME%TYPE;
+	BEGIN 
+		SELECT EMP_NAME 
+		INTO vs_emp_name
+		FROM EMPLOYEES 
+		WHERE EMPLOYEE_ID = pn_employee_id;
+	
+		RETURN nvl(vs_emp_name, '해당사원없음');
+	END fn_get_emp_name;
+	
+	PROCEDURE new_emp_proc(ps_emp_name IN varchar2, pd_hire_date IN varchar2)
+	IS 
+		vn_emp_id employees.employee_id%TYPE;
+		vd_hire_date DATE := to_date(pd_hire_date, 'YYYY-MM-DD');
+	BEGIN 
+		SELECT NVL(MAX(EMPLOYEE_ID), 0) + 1
+		INTO vn_emp_id
+		FROM EMPLOYEES;
+	
+		INSERT INTO EMPLOYEES (EMPLOYEE_ID, EMP_NAME, HIRE_DATE, CREATE_DATE, UPDATE_DATE) 
+		VALUES (vn_emp_id, ps_emp_name, nvl(vd_hire_date, sysdate), sysdate, sysdate);
+	
+		COMMIT;
+	
+	EXCEPTION WHEN OTHERS THEN 
+		dbms_output.put_line('에러: ' || sqlerrm);
+		ROLLBACK;
+	END new_emp_proc;
+	
+	PROCEDURE retire_emp_proc(pn_employee_id IN number)
+	IS 
+		vn_cnt NUMBER := 0;
+		e_no_data	EXCEPTION;
+	BEGIN 
+		UPDATE EMPLOYEES 
+		SET RETIRE_DATE = SYSDATE 
+		WHERE EMPLOYEE_ID = pn_employee_id
+		AND RETIRE_DATE IS NULL;
+	
+		vn_cnt := SQL%rowcount;
+		dbms_output.put_line('vn_cnt: '||vn_cnt);
+	
+		IF vn_cnt = 0 THEN 
+			raise e_no_data;
+		END IF;
+	
+		COMMIT;
+	
+	EXCEPTION WHEN e_no_data THEN 
+		dbms_output.put_line(pn_employee_id||'에 해당되는 퇴사처리할 사원이 없습니다!');
+		ROLLBACK;
+	WHEN OTHERS THEN 
+		dbms_output.put_line('에러: ' || sqlerrm);
+		ROLLBACK;
+	END retire_emp_proc;
+
+	 -- 사번을 입력받아 부서명을 반환하는 함수
+	FUNCTION fn_get_dep_name(pn_employee_id IN number)
+		RETURN varchar2
+	IS 
+		vs_dep_name departments.DEPARTMENT_NAME%TYPE;
+	BEGIN 
+		SELECT b.DEPARTMENT_NAME 
+		INTO vs_dep_name
+		FROM EMPLOYEES a, DEPARTMENTS b
+		WHERE a.EMPLOYEE_ID = pn_employee_id
+		AND a.DEPARTMENT_ID = b.DEPARTMENT_ID ;
+	
+		RETURN vs_dep_name;
+	END fn_get_dep_name;
+
+END hr_pkg;
+
+SELECT hr_pkg.FN_GET_EMP_NAME(171) 
+FROM dual ;
+
+BEGIN 
+	hr_pkg.new_emp_proc('Julia Roberts', '20140110');
+END;
+
+BEGIN 
+	hr_pkg.retire_emp_proc(299);
+END;
+
+SELECT * FROM EMPLOYEES ;
+
+CREATE OR REPLACE PROCEDURE ch12_dep_proc(pn_employee_id IN number)
+IS 
+	vs_dep_name departments.DEPARTMENT_NAME%TYPE;
+BEGIN 
+	vs_dep_name := hr_pkg.fn_get_dep_name(pn_employee_id);
+
+	dbms_output.put_line(nvl(vs_dep_name, '부서명 없음'));
+END;
+
+BEGIN 
+	CH12_DEP_PROC(208);
+END;
