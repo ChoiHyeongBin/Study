@@ -3080,3 +3080,155 @@ BEGIN
 		dbms_output.put_line('부서번호: '||emp_rec.DEPARTMENT_ID||' 부서명: '||emp_rec.DEPARTMENT_NAME||' LV: '||emp_rec.lv);
 	END LOOP;
 END;
+
+
+ -- 230504
+ -- Self-Check 2
+ -- to_be
+DECLARE 
+	TYPE nt_type IS TABLE OF EMPLOYEES%rowtype;
+
+	vnt_test nt_type;
+BEGIN 
+	vnt_test := nt_type();
+	vnt_test.extend;	-- 요소 1개 추가 (NULL 항목)
+
+	SELECT *
+	INTO vnt_test(1)
+	FROM EMPLOYEES
+	WHERE EMPLOYEE_ID = 100;
+
+	dbms_output.put_line(vnt_test(1).employee_id);
+	dbms_output.put_line(vnt_test(1).EMP_NAME);
+END;
+
+ -- as_is
+DECLARE 
+	TYPE nt_type IS TABLE OF varchar2(20)
+					INDEX BY varchar2(20);
+
+	vnt_test nt_type;
+BEGIN 
+	vnt_test('다원') := 'test';
+	
+	dbms_output.put_line(vnt_test('다원'));
+END;
+
+
+ -- 230505
+ -- Self-Check 3
+CREATE OR REPLACE TYPE nt_ch11_emp IS TABLE OF varchar2(20);	-- 중첩 테이블
+
+DECLARE 
+	vr_emp EMPLOYEES%rowtype;	-- 테이블형 레코드 변수
+
+	vnt_test nt_ch11_emp;
+BEGIN 	
+	vnt_test := nt_ch11_emp('Harrison Ford');
+
+	SELECT * 
+	INTO vr_emp
+	FROM EMPLOYEES 
+	WHERE EMP_NAME = vnt_test(1);
+
+	dbms_output.put_line(vr_emp.email);
+END;
+
+ -- Self-Check 4 (*중첩테이블에 조인문 넣을 방법이 없음)
+CREATE OR REPLACE PROCEDURE table_dept_proc(
+	p_department_id IN DEPARTMENTS.DEPARTMENT_ID%type
+)
+IS 
+	TYPE nt_type IS TABLE OF EMPLOYEES%rowtype;
+
+	vnt_test nt_type;
+BEGIN 
+	vnt_test := nt_type();
+	
+	FOR rec IN (
+		SELECT 
+			a.EMPLOYEE_ID, a.EMP_NAME, b.DEPARTMENT_NAME 
+		FROM 
+			EMPLOYEES a
+		INNER JOIN 
+			DEPARTMENTS b
+			ON a.DEPARTMENT_ID = b.DEPARTMENT_ID 
+		WHERE 
+			a.DEPARTMENT_ID = p_department_id
+	)
+	LOOP
+		vnt_test.extend;
+		vnt_test(vnt_test.last) := rec;
+	END LOOP;
+	
+	FOR i IN vnt_test.FIRST..vnt_test.LAST
+	LOOP
+		dbms_output.put_line(vnt_test(i).EMPLOYEE_ID);
+	END LOOP;
+END;
+
+BEGIN 
+	
+END;
+
+DECLARE 
+	TYPE nt_type IS TABLE OF EMPLOYEES%rowtype;
+
+	vnt_test nt_type;
+
+--	v_department_name DEPARTMENTS.DEPARTMENT_NAME%TYPE := 'test';
+	v_department_name varchar2(20);
+BEGIN 
+	vnt_test := nt_type();
+	
+	FOR rec IN (
+--		SELECT 
+----			CAST(a.EMPLOYEE_ID AS varchar2(6)) AS EMPLOYEE_ID
+----			, a.EMP_NAME, b.DEPARTMENT_NAME 
+--			a.EMPLOYEE_ID
+--			, a.EMP_NAME
+--			, (
+--				SELECT DEPARTMENT_NAME
+--				FROM DEPARTMENTS 
+--				WHERE DEPARTMENT_ID = a.DEPARTMENT_ID 
+--			) AS DEPARTMENT_NAME
+--		FROM 
+--			EMPLOYEES a
+--		WHERE 
+--			a.DEPARTMENT_ID = 50
+		SELECT * FROM EMPLOYEES 
+	)
+	LOOP
+		vnt_test.extend;
+		vnt_test(vnt_test.last) := rec;
+	END LOOP;
+	
+	FOR i IN vnt_test.FIRST..vnt_test.LAST
+	LOOP
+		dbms_output.put_line(vnt_test(i).DEPARTMENT_ID);
+	
+		SELECT DEPARTMENT_NAME
+		INTO v_department_name
+		FROM DEPARTMENTS 
+		WHERE DEPARTMENT_ID = vnt_test(i).DEPARTMENT_ID 
+		
+		dbms_output.put_line(v_department_name);
+	END LOOP;
+END;
+
+SELECT 
+--			CAST(a.EMPLOYEE_ID AS varchar2(6)) AS EMPLOYEE_ID
+--			, a.EMP_NAME, b.DEPARTMENT_NAME 
+			*
+		FROM 
+			EMPLOYEES a
+		INNER JOIN 
+			DEPARTMENTS b
+			ON a.DEPARTMENT_ID = b.DEPARTMENT_ID 
+		WHERE 
+			a.DEPARTMENT_ID = 50;
+			
+SELECT DEPARTMENT_NAME
+FROM DEPARTMENTS 
+WHERE DEPARTMENT_ID = 50
+;
