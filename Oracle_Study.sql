@@ -3353,3 +3353,142 @@ END;
 BEGIN 
 	CH12_DEP_PROC(208);
 END;
+
+
+ -- 230507
+ -- 상수와 변수 선언
+CREATE OR REPLACE PACKAGE ch12_var IS
+	c_test constant varchar2(10) := 'TEST';
+
+	v_test varchar2(10);
+
+	FUNCTION fn_get_value RETURN varchar2;
+
+	PROCEDURE sp_set_value (ps_value varchar2);
+END ch12_var;
+
+BEGIN 
+	dbms_output.put_line(ch12_var.c_test);
+	ch12_var.v_test := 'FIRST';
+	dbms_output.put_line(ch12_var.v_test);
+END;
+
+BEGIN 
+	dbms_output.put_line(ch12_var.v_test);
+END;
+
+ -- 본문에 상수와 변수 선언
+CREATE OR REPLACE PACKAGE BODY ch12_var IS
+	c_test_body constant varchar2(10) := 'CONSTANT_BODY';
+
+	v_test_body varchar2(10);
+
+	FUNCTION fn_get_value RETURN varchar2
+	IS 
+	
+	BEGIN 
+		RETURN nvl(v_test_body, 'NULL 이다');
+	END fn_get_value;
+
+	PROCEDURE sp_set_value (ps_value varchar2)
+	IS 
+	
+	BEGIN 
+		v_test_body := ps_value;
+	END sp_set_value;
+END ch12_var;
+
+BEGIN 
+	dbms_output.put_line(ch12_var.c_test_body);
+	dbms_output.put_line(ch12_var.v_test_body);
+END;
+
+DECLARE 
+	vs_value varchar2(10);
+BEGIN 
+	ch12_var.sp_set_value('EXTERNAL');
+
+	vs_value := ch12_var.fn_get_value;
+	dbms_output.put_line(vs_value);
+END;
+
+ -- 패키지 선언부에 커서 전체를 선언하는 형태
+CREATE OR REPLACE PACKAGE ch12_cur_pkg IS 
+	CURSOR pc_empdep_cur (dep_id IN departments.DEPARTMENT_ID%type)
+	IS 
+		SELECT a.EMPLOYEE_ID , a.EMP_NAME , b.DEPARTMENT_NAME 
+		FROM EMPLOYEES a, DEPARTMENTS b
+		WHERE a.DEPARTMENT_ID = dep_id
+		AND a.DEPARTMENT_ID = b.DEPARTMENT_ID ;
+	
+	 -- ROWTYPE형 커서 헤더 선언
+	CURSOR pc_depname_cur(dep_id IN departments.DEPARTMENT_ID%type)
+		RETURN departments%rowtype;
+	
+	 -- 사용자 정의 레코드 타입
+	TYPE emp_dep_rt IS RECORD (
+		emp_id employees.employee_id%TYPE,
+		emp_name employees.emp_name%TYPE,
+		job_title jobs.job_title%type
+	);
+
+	 -- 사용자 정의 레코드를 반환하는 커서
+	CURSOR pc_empdep2_cur (p_job_id IN jobs.job_id%type)
+		RETURN emp_dep_rt;
+END ch12_cur_pkg;
+
+BEGIN 
+	FOR rec IN ch12_cur_pkg.pc_empdep_cur(30)
+	LOOP
+		dbms_output.put_line(rec.EMP_NAME || ' - ' || rec.DEPARTMENT_NAME);
+	END LOOP;
+END;
+
+ -- 패키지 본문
+CREATE OR REPLACE PACKAGE BODY ch12_cur_pkg IS 
+	-- ROWTYPE형 커서 본문
+	CURSOR pc_depname_cur(dep_id IN departments.DEPARTMENT_ID%type)
+		RETURN departments%rowtype
+	IS 
+		SELECT *
+		FROM DEPARTMENTS 
+		WHERE DEPARTMENT_ID = dep_id;
+	
+	 -- 사용자 정의 레코드를 반환하는 커서
+	CURSOR pc_empdep2_cur (p_job_id IN jobs.job_id%type)
+		RETURN emp_dep_rt
+	IS 
+		SELECT a.EMPLOYEE_ID , a.EMP_NAME , b.JOB_TITLE 
+		FROM EMPLOYEES a,
+			 jobs b
+		WHERE a.JOB_ID = p_job_id
+		AND a.JOB_ID = b.JOB_ID;
+END ch12_cur_pkg;
+
+BEGIN 
+	FOR rec IN ch12_cur_pkg.pc_depname_cur(30)
+	LOOP
+		dbms_output.put_line(rec.department_id || ' - ' || rec.department_name);
+	END LOOP;
+END;
+
+BEGIN 
+	FOR rec IN ch12_cur_pkg.pc_empdep2_cur('FI_ACCOUNT')
+	LOOP
+		dbms_output.put_line(rec.emp_id || ' - ' || rec.emp_name || ' - ' || rec.job_title);
+	END LOOP;
+END;
+
+DECLARE 
+	dep_cur ch12_cur_pkg.pc_depname_cur%rowtype;
+BEGIN 
+	OPEN ch12_cur_pkg.pc_depname_cur(30);
+
+	LOOP
+		FETCH ch12_cur_pkg.pc_depname_cur INTO dep_cur;
+		EXIT WHEN ch12_cur_pkg.pc_depname_cur%notfound;
+		dbms_output.put_line(dep_cur.DEPARTMENT_ID || ' - ' || dep_cur.department_name);
+	END LOOP;
+	
+	CLOSE ch12_cur_pkg.pc_depname_cur;
+END;
