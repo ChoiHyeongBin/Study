@@ -3492,3 +3492,221 @@ BEGIN
 	
 	CLOSE ch12_cur_pkg.pc_depname_cur;
 END;
+
+
+ -- 230508
+ -- 패키지에 컬렉션 선언
+CREATE OR REPLACE PACKAGE ch12_col_pkg IS
+	pragma serially_reusable;
+	-- 중첩 테이블 선언
+	TYPE nt_dep_name IS TABLE OF varchar2(30);
+
+	pv_nt_dep_name nt_dep_name := nt_dep_name();
+
+	PROCEDURE make_dep_proc(p_par_id IN number);
+END ch12_col_pkg;
+
+CREATE OR REPLACE PACKAGE BODY ch12_col_pkg IS 
+	pragma serially_reusable;
+	PROCEDURE make_dep_proc(p_par_id IN number)
+	IS 
+	BEGIN 
+		FOR rec IN (	-- 커서
+			SELECT DEPARTMENT_NAME 
+			FROM DEPARTMENTS
+			WHERE PARENT_ID = p_par_id
+		)
+		LOOP
+			pv_nt_dep_name.extend();
+			dbms_output.put_line('pv_nt_dep_name.count: '||pv_nt_dep_name.count);
+			pv_nt_dep_name(pv_nt_dep_name.count) := rec.DEPARTMENT_NAME;
+		END LOOP;
+	END make_dep_proc;
+END ch12_col_pkg;
+
+BEGIN 
+	ch12_col_pkg.make_dep_proc(100);
+
+	FOR i IN 1..ch12_col_pkg.pv_nt_dep_name.count
+	LOOP
+		dbms_output.put_line(ch12_col_pkg.pv_nt_dep_name(i));
+	END LOOP;
+END;
+
+BEGIN 
+	FOR i IN 1..ch12_col_pkg.pv_nt_dep_name.count
+	LOOP
+		dbms_output.put_line(ch12_col_pkg.pv_nt_dep_name(i));
+	END LOOP;
+END;
+
+ -- 오버로딩 패키지
+CREATE OR REPLACE PACKAGE ch12_overload_pkg IS 
+	PROCEDURE get_dep_nm_proc(p_emp_id IN NUMBER);
+
+	PROCEDURE get_dep_nm_proc(p_emp_name IN varchar2);
+END ch12_overload_pkg;
+
+CREATE OR REPLACE PACKAGE BODY ch12_overload_pkg IS 
+	PROCEDURE get_dep_nm_proc(p_emp_id IN NUMBER)
+	IS 
+		vs_dep_nm departments.DEPARTMENT_NAME%TYPE;
+	BEGIN 
+		SELECT b.DEPARTMENT_NAME 
+		INTO vs_dep_nm
+		FROM EMPLOYEES a, DEPARTMENTS b
+		WHERE a.EMPLOYEE_ID = p_emp_id
+		AND a.DEPARTMENT_ID = b.DEPARTMENT_ID ;
+	
+		dbms_output.put_line('emp_id: '|| p_emp_id || ' - ' || vs_dep_nm);
+	END get_dep_nm_proc;
+
+	PROCEDURE get_dep_nm_proc(p_emp_name IN varchar2)
+	IS 
+		vs_dep_nm departments.DEPARTMENT_NAME%TYPE;
+	BEGIN 
+		SELECT b.DEPARTMENT_NAME 
+		INTO vs_dep_nm
+		FROM EMPLOYEES a, DEPARTMENTS b
+		WHERE a.EMP_NAME = p_emp_name
+		AND a.DEPARTMENT_ID = b.DEPARTMENT_ID ;
+	
+		dbms_output.put_line('emp_id: '|| p_emp_name || ' - ' || vs_dep_nm);
+	END get_dep_nm_proc;
+END ch12_overload_pkg;
+
+BEGIN 
+	ch12_overload_pkg.get_dep_nm_proc(176);
+
+	ch12_overload_pkg.get_dep_nm_proc('Jonathon Taylor');
+END;
+
+ -- 패키지 리스트 조회
+SELECT OWNER , OBJECT_NAME , OBJECT_TYPE , STATUS
+FROM ALL_OBJECTS 
+WHERE OBJECT_TYPE = 'PACKAGE'
+AND ( OBJECT_NAME LIKE 'DBMS%' OR OBJECT_NAME LIKE 'UTL%' )
+ORDER BY OBJECT_NAME 
+;
+
+ -- 생성 스크립트 추출
+SELECT dbms_metadata.get_ddl('TABLE', 'EMPLOYEES', 'ORA_USER')
+FROM dual ;
+
+SELECT dbms_metadata.get_ddl('PACKAGE', 'CH12_OVERLOAD_PKG', 'ORA_USER')
+FROM dual ;
+
+ -- 권한 부여
+--grant select_catalog_role to ora_user;
+
+ -- Self-Check 1
+ -- 패키지 선언부
+CREATE OR REPLACE PACKAGE hr_pkg2 IS 
+
+	 -- 부서이름 반환
+	FUNCTION fn_get_dep_name(pn_department_id IN number)
+	RETURN varchar2;
+	
+	 -- 신규부서 입력
+	PROCEDURE new_dep_proc(
+		ps_dep_name IN varchar2, pn_parent_id IN NUMBER, pn_mng_id IN NUMBER
+	);
+	
+	 -- 부서 삭제
+	PROCEDURE del_dep_proc(pn_department_id IN number);
+
+END hr_pkg2;
+
+SELECT * FROM DEPARTMENTS ;
+
+ -- 패키지 본문
+CREATE OR REPLACE PACKAGE BODY hr_pkg2 IS 
+
+	 -- 부서이름 반환
+	FUNCTION fn_get_dep_name(pn_department_id IN number)
+		RETURN varchar2
+	IS 
+		vs_department_name DEPARTMENTS.DEPARTMENT_NAME%TYPE;
+	BEGIN 
+		SELECT DEPARTMENT_NAME  
+		INTO vs_department_name
+		FROM DEPARTMENTS 
+		WHERE DEPARTMENT_ID = pn_department_id;
+	
+		RETURN nvl(vs_department_name, '해당부서없음');
+	END fn_get_dep_name;
+	
+	 -- 신규부서 입력
+	PROCEDURE new_dep_proc(
+		ps_dep_name IN varchar2, pn_parent_id IN NUMBER, pn_mng_id IN NUMBER
+	)
+	IS 
+		vn_department_id DEPARTMENTS.department_id%TYPE;
+	BEGIN 
+		SELECT NVL(MAX(DEPARTMENT_ID), 0) + 1
+		INTO vn_department_id
+		FROM DEPARTMENTS;
+	
+		INSERT INTO DEPARTMENTS (DEPARTMENT_ID, DEPARTMENT_NAME, PARENT_ID, MANAGER_ID, CREATE_DATE, UPDATE_DATE) 
+		VALUES (vn_department_id, ps_dep_name, pn_parent_id, pn_mng_id, sysdate, sysdate);
+	
+		COMMIT;
+	
+	EXCEPTION WHEN OTHERS THEN 
+		dbms_output.put_line('에러: ' || sqlerrm);
+		ROLLBACK;
+	END new_dep_proc;
+	
+	 -- 부서 삭제
+	PROCEDURE del_dep_proc(pn_department_id IN number)
+	IS 
+		vn_employee_cnt NUMBER := 0;
+		vn_cnt NUMBER := 0;
+		e_exist_employee	EXCEPTION;
+		e_no_data			EXCEPTION;
+	BEGIN 
+		SELECT COUNT(*) 
+		INTO vn_employee_cnt
+		FROM EMPLOYEES 
+		WHERE DEPARTMENT_ID = pn_department_id;
+		
+		IF vn_employee_cnt > 0 THEN 
+			raise e_exist_employee;
+		END IF;
+	
+		DELETE FROM DEPARTMENTS WHERE DEPARTMENT_ID = pn_department_id;
+	
+		vn_cnt := SQL%rowcount;
+		dbms_output.put_line('vn_cnt: '||vn_cnt);
+	
+		IF vn_cnt = 0 THEN 
+			raise e_no_data;
+		END IF;
+	
+		COMMIT;
+	
+	EXCEPTION 
+	WHEN e_exist_employee THEN
+		dbms_output.put_line(pn_department_id||' 부서에 해당되는 사원이 존재합니다!');
+		ROLLBACK;
+	WHEN e_no_data THEN 
+		dbms_output.put_line(pn_department_id||'에 해당되는 부서가 없습니다!');
+		ROLLBACK;
+	WHEN OTHERS THEN 
+		dbms_output.put_line('에러: ' || sqlerrm);
+		ROLLBACK;
+	END del_dep_proc;
+
+END hr_pkg2;
+
+SELECT hr_pkg2.fn_get_dep_name(444) FROM dual ;
+
+BEGIN 
+	hr_pkg2.new_dep_proc('테스트부서', 50, '273');
+END;
+
+SELECT * FROM DEPARTMENTS ;
+
+BEGIN 
+	hr_pkg2.del_dep_proc(273);
+END;
