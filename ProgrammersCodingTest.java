@@ -1,40 +1,68 @@
 package codingTest;
 
+import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.List;
+import java.util.OptionalInt;
+import java.util.stream.IntStream;
 
 public class ProgrammersCodingTest {
 
 	public static void main(String[] args) {
-		int brown = 10;
-		int yellow = 2;
+//		int[] arrNum = new int[] {1,3,2,4,2};
+		int[] arrNum = new int[] {1,2,3,4,5};
 		
-		solution(brown, yellow);
+		solution(arrNum);
 	}
 
-	// LV2 카펫
-	public static int[] solution(int brown, int yellow) {
-        int[] answer = new int[2];
-        int sum = brown + yellow;	// 격자 총갯수
+	// LV1 모의고사
+	public static int[] solution(int[] answers) {
+        int[] answer = new int[3];
+        List<Integer> highPerson = new ArrayList<Integer>();
+        int[] first  = new int[] {1, 2, 3, 4, 5};
+        int[] second = new int[] {2, 1, 2, 3, 2, 4, 2, 5};
+        int[] third  = new int[] {3, 3, 1, 1, 2, 2, 4, 4, 5, 5};
         
-        for (int i = 3; i < sum; i++) {
-        	int j = sum / i;
-//        	System.out.println("j : " + j);
-        	
-        	if (sum % i == 0 && j >= 3) {
-        		int col = Math.max(i, j);
-        		int row = Math.min(i, j);
-        		System.out.println("col: " + col + ", row: " + row);
-        		int center = (col - 2) * (row - 2);
-        		System.out.println("center: " + center);
-        		
-        		if (center == yellow) {
-        			answer[0] = col;
-        			answer[1] = row;
-        		}
+        answer[0] = proc(first, answers);
+        answer[1] = proc(second, answers);
+        answer[2] = proc(third, answers);
+
+        IntStream intStream = Arrays.stream(answer);
+        OptionalInt optionalInt = intStream.max();
+        int maxAsInt = optionalInt.getAsInt();
+        
+        for (int o = 0; o < answer.length; o++) {
+        	if (answer[o] == maxAsInt) {
+        		highPerson.add(o + 1);
         	}
         }
         
-        System.out.println(Arrays.toString(answer));
+        answer = highPerson.stream().mapToInt(Integer::intValue).toArray();
         return answer;
     }
+	
+	public static int proc(int[] person, int[] answers) {
+		int cnt = 0;	// 카운트
+		int i = 0;		// 수포자 인덱스
+        int j = 0;		// 정답 인덱스
+        
+        while (true) {
+        	if (i == person.length) {
+        		i = 0;
+        	}
+        	
+        	if (j == answers.length) {
+        		break;
+        	}
+        	
+        	if (person[i] == answers[j]) {
+        		cnt++;
+        	}
+        	
+        	i++;
+        	j++;
+        }
+		
+		return cnt;
+	}
 }
