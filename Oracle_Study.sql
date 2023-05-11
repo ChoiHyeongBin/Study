@@ -3710,3 +3710,78 @@ SELECT * FROM DEPARTMENTS ;
 BEGIN 
 	hr_pkg2.del_dep_proc(273);
 END;
+
+
+ -- 230511
+ -- Self-Check 2
+CREATE OR REPLACE PACKAGE ch12_seq_pkg IS 
+
+	FUNCTION get_nextval RETURN NUMBER;
+
+END ch12_seq_pkg;
+
+CREATE OR REPLACE PACKAGE BODY ch12_seq_pkg IS 
+
+	n_seq NUMBER := 0;
+
+	FUNCTION get_nextval RETURN NUMBER
+	IS 
+	
+	BEGIN 
+		n_seq := n_seq + 1;
+	
+		RETURN n_seq;
+	END get_nextval;
+
+END ch12_seq_pkg;
+
+BEGIN 
+	dbms_output.put_line('새로운 번호: ' || ch12_seq_pkg.get_nextval);
+END;
+
+ -- Self-Check 3
+CREATE OR REPLACE PACKAGE ch12_exacur_pkg IS 
+
+	 -- ROWTYPE형 커서 헤더 선언
+	CURSOR pc_depname_cur( dep_id IN departments.DEPARTMENT_ID%type )
+		RETURN departments%rowtype;
+
+	PROCEDURE dep_inqr_proc(dep_id IN departments.DEPARTMENT_ID%type);
+	
+END ch12_exacur_pkg;
+
+CREATE OR REPLACE PACKAGE BODY ch12_exacur_pkg IS 
+
+	CURSOR pc_depname_cur( dep_id IN departments.DEPARTMENT_ID%type )
+		RETURN departments%rowtype
+	IS 
+		SELECT *
+		FROM DEPARTMENTS
+		WHERE DEPARTMENT_ID = dep_id;
+
+	PROCEDURE dep_inqr_proc(dep_id IN departments.DEPARTMENT_ID%type)
+	IS 
+		dep_cur pc_depname_cur%rowtype;
+	BEGIN 
+		-- 열려있으면 닫는 작업 수행
+		IF pc_depname_cur%isopen THEN 
+			CLOSE pc_depname_cur;
+		END IF;
+	
+		OPEN pc_depname_cur(dep_id);
+--		dbms_output.put_line('isopen: ' || pc_depname_cur%ISOPEN);	-- *찍는건 안됨. 오류발생
+	
+		LOOP
+			FETCH pc_depname_cur INTO dep_cur;
+		EXIT WHEN pc_depname_cur%notfound;
+		dbms_output.put_line(dep_cur.DEPARTMENT_ID || ' - ' || dep_cur.DEPARTMENT_NAME);
+		END LOOP;
+		
+--		CLOSE pc_depname_cur;
+	END dep_inqr_proc;
+	
+END ch12_exacur_pkg;
+
+BEGIN 
+	ch12_exacur_pkg.dep_inqr_proc(80);
+END;
