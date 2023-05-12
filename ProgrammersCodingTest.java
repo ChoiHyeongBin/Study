@@ -1,68 +1,72 @@
 package codingTest;
 
-import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.List;
-import java.util.OptionalInt;
-import java.util.stream.IntStream;
+import java.util.HashSet;
+import java.util.Set;
 
 public class ProgrammersCodingTest {
 
 	public static void main(String[] args) {
-//		int[] arrNum = new int[] {1,3,2,4,2};
-		int[] arrNum = new int[] {1,2,3,4,5};
+		int[] people = new int[] {50, 30, 20, 70, 10};
+//		int[] people = new int[] {70, 80, 50};
+//		int[] people = new int[] {70, 50, 40, 50};
+		int limit = 100;
 		
-		solution(arrNum);
+		solution(people, limit);
 	}
 
-	// LV1 모의고사
-	public static int[] solution(int[] answers) {
-        int[] answer = new int[3];
-        List<Integer> highPerson = new ArrayList<Integer>();
-        int[] first  = new int[] {1, 2, 3, 4, 5};
-        int[] second = new int[] {2, 1, 2, 3, 2, 4, 2, 5};
-        int[] third  = new int[] {3, 3, 1, 1, 2, 2, 4, 4, 5, 5};
+	// LV2 구명보트
+	public static int solution(int[] people, int limit) {
+		int answer = 0;
+		
+		Arrays.sort(people);
+		System.out.println("people: " + Arrays.toString(people));
+		
+		int min = 0;
+		for (int max = people.length - 1; min <= max; max--) {
+			System.out.println("max: " + max);
+			
+			System.out.println("people[min]: " + people[min]);
+			System.out.println("people[max]: " + people[max]);
+			System.out.println();
+			if (people[min] + people[max] <= limit) {
+				min++;
+			}
+			
+			answer++;
+		}
+		
+		System.out.println("answer: " + answer);
+		return answer;
+		
+		// *테스트 케이스는 통과하나, 채점시 시간초과 에러
+        /* int answer = 0;
+        Set<Integer> rescuePeople = null;
+        Integer[] arr = Arrays.stream(people).boxed().toArray(Integer[]::new);
         
-        answer[0] = proc(first, answers);
-        answer[1] = proc(second, answers);
-        answer[2] = proc(third, answers);
-
-        IntStream intStream = Arrays.stream(answer);
-        OptionalInt optionalInt = intStream.max();
-        int maxAsInt = optionalInt.getAsInt();
-        
-        for (int o = 0; o < answer.length; o++) {
-        	if (answer[o] == maxAsInt) {
-        		highPerson.add(o + 1);
+        for (int i = 0; i < people.length; i++) {
+        	for (int j = i + 1; j < people.length; j++) {
+//        		System.out.println(people[i] + people[j]);
+        		
+        		if (people[i] + people[j] <= 100) {
+        			System.out.println("people[i]: " + people[i]);
+        			System.out.println("people[j]: " + people[j]);
+        			System.out.println();
+        			
+        			rescuePeople = new HashSet<Integer>(Arrays.asList(arr));
+        		}
         	}
         }
         
-        answer = highPerson.stream().mapToInt(Integer::intValue).toArray();
-        return answer;
+        if (rescuePeople == null) {
+        	answer = people.length;
+        } else {
+        	answer = rescuePeople.size();
+        }
+        
+        System.out.println("rescuePeople: " + rescuePeople);
+        System.out.println("answer: " + answer);
+        return answer; */
     }
-	
-	public static int proc(int[] person, int[] answers) {
-		int cnt = 0;	// 카운트
-		int i = 0;		// 수포자 인덱스
-        int j = 0;		// 정답 인덱스
-        
-        while (true) {
-        	if (i == person.length) {
-        		i = 0;
-        	}
-        	
-        	if (j == answers.length) {
-        		break;
-        	}
-        	
-        	if (person[i] == answers[j]) {
-        		cnt++;
-        	}
-        	
-        	i++;
-        	j++;
-        }
-		
-		return cnt;
-	}
+
 }
