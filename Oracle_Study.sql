@@ -3859,3 +3859,161 @@ END;
 BEGIN 
 	dbms_output.put_line('부서번호: ' || 40 || ', ' || '부서명: ' ||ch12_dep_pkg.get_dep_hierarchy(40, 40));
 END;
+
+
+ -- 230512
+ -- Self-Check 5
+SELECT dbms_metadata.get_ddl('PACKAGE', 'DBMS_OUTPUT', 'SYS') FROM dual ;
+
+SELECT *
+FROM ALL_OBJECTS 
+WHERE OBJECT_TYPE = 'PACKAGE'
+AND OBJECT_NAME LIKE 'DBMS_OUTPUT%'
+;
+
+ -- 동적 SQL - NDS
+BEGIN 
+	EXECUTE IMMEDIATE 'SELECT EMPLOYEE_ID , EMP_NAME , JOB_ID 
+					   FROM EMPLOYEES WHERE JOB_ID = ''AD_ASST''';
+END;
+
+SELECT EMPLOYEE_ID , EMP_NAME , JOB_ID 
+FROM EMPLOYEES 
+WHERE JOB_ID = 'AD_ASST'
+;
+
+DECLARE
+	vn_emp_id 	employees.employee_id%TYPE;
+	vn_emp_name employees.emp_name%TYPE;
+	vn_job_id 	employees.job_id%TYPE;
+BEGIN 
+	EXECUTE IMMEDIATE 'SELECT EMPLOYEE_ID , EMP_NAME , JOB_ID 
+					   FROM EMPLOYEES WHERE JOB_ID = ''AC_MGR'' '
+					   INTO vn_emp_id, vn_emp_name, vn_job_id;
+					  
+	dbms_output.put_line(vn_emp_id);
+	dbms_output.put_line(vn_emp_name);
+	dbms_output.put_line(vn_job_id);
+END;
+
+ -- 실제 현장 예시
+DECLARE
+	vn_emp_id 	employees.employee_id%TYPE;
+	vn_emp_name employees.emp_name%TYPE;
+	vn_job_id 	employees.job_id%TYPE;
+
+	vs_sql varchar2(1000);
+BEGIN 
+	vs_sql := 'SELECT EMPLOYEE_ID , EMP_NAME , JOB_ID 
+			   FROM EMPLOYEES WHERE JOB_ID = ''AC_MGR'' ';
+	
+	EXECUTE IMMEDIATE vs_sql INTO vn_emp_id, vn_emp_name, vn_job_id;
+					  
+	dbms_output.put_line(vn_emp_id);
+	dbms_output.put_line(vn_emp_name);
+	dbms_output.put_line(vn_job_id);
+END;
+ 
+ -- 바인드 변수 처리 1
+DECLARE
+	vn_emp_id 	employees.employee_id%TYPE;
+	vn_emp_name employees.emp_name%TYPE;
+	vn_job_id 	employees.job_id%TYPE;
+
+	vs_sql varchar2(1000);
+BEGIN 
+	vs_sql := 'SELECT EMPLOYEE_ID , EMP_NAME , JOB_ID 
+			   FROM EMPLOYEES 
+			   WHERE JOB_ID = ''SA_REP''
+			   and salary < 7000
+			   and manager_id = 148 ';
+	
+	EXECUTE IMMEDIATE vs_sql INTO vn_emp_id, vn_emp_name, vn_job_id;
+					  
+	dbms_output.put_line(vn_emp_id);
+	dbms_output.put_line(vn_emp_name);
+	dbms_output.put_line(vn_job_id);
+END;
+
+ -- 바인드 변수 처리 2
+DECLARE
+	vn_emp_id 	employees.employee_id%TYPE;
+	vs_emp_name employees.emp_name%TYPE;
+	vs_job_id 	employees.job_id%TYPE;
+
+	vs_sql varchar2(1000);
+
+	vs_job employees.job_id%TYPE := 'SA_REP';
+	vn_manager employees.manager_id%TYPE := 148;
+	vn_sal employees.salary%TYPE := 7000;
+	
+BEGIN 
+	vs_sql := 'SELECT EMPLOYEE_ID , EMP_NAME , JOB_ID 
+			   FROM EMPLOYEES 
+			   WHERE JOB_ID = :a
+			   and salary < :b
+			   and manager_id = :c ';
+	
+	EXECUTE IMMEDIATE vs_sql INTO vn_emp_id, vs_emp_name, vs_job_id
+	USING vs_job, vn_sal, vn_manager;
+					  
+	dbms_output.put_line(vn_emp_id);
+	dbms_output.put_line(vs_emp_name);
+	dbms_output.put_line(vs_job_id);
+END;
+
+CREATE TABLE ch13_physicist (
+	ids NUMBER,
+	names varchar2(50),
+	birth_dt date
+);
+
+DECLARE 
+	vn_ids ch13_physicist.ids%TYPE := 10;
+	vs_name ch13_physicist.names%TYPE := 'Albert Einstein';
+	vd_dt ch13_physicist.birth_dt%TYPE := to_date('1879-03-14', 'YYYY-MM-DD');
+
+	vs_sql varchar2(1000);
+BEGIN 
+	vs_sql := 'INSERT INTO ch13_physicist VALUES (:a, :a, :a)';
+
+	EXECUTE IMMEDIATE vs_sql USING vn_ids, vs_name, vd_dt;
+	
+	COMMIT;
+END;
+
+DECLARE 
+	vn_ids ch13_physicist.ids%TYPE := 10;
+	vs_name ch13_physicist.names%TYPE := 'Max Planck';
+	vd_dt ch13_physicist.birth_dt%TYPE := to_date('1858-04-23', 'YYYY-MM-DD');
+
+	vs_sql varchar2(1000);
+	vn_cnt NUMBER := 0;
+BEGIN 
+	vs_sql := 'update ch13_physicist
+			   set names = :a,
+				   birth_dt = :a
+			   where ids = :a ' ;
+			  
+	EXECUTE IMMEDIATE vs_sql USING vs_name, vd_dt, vn_ids;
+
+	SELECT NAMES 
+	INTO vs_name
+	FROM ch13_physicist;
+
+	dbms_output.put_line('UPDATE 후 이름: ' || vs_name);
+
+	vs_sql := 'delete ch13_physicist
+			   where ids = :a ';
+			  
+	EXECUTE IMMEDIATE vs_sql USING vn_ids;
+
+	SELECT COUNT(*) 
+	INTO vn_cnt
+	FROM ch13_physicist;
+
+	dbms_output.put_line('vn_cnt: ' || vn_cnt);
+	COMMIT;
+END;
+
+SELECT * FROM ch13_physicist ;
