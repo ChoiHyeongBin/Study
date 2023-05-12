@@ -3785,3 +3785,77 @@ END ch12_exacur_pkg;
 BEGIN 
 	ch12_exacur_pkg.dep_inqr_proc(80);
 END;
+
+ -- Self-Check 4
+CREATE OR REPLACE PACKAGE ch12_dep_pkg IS 
+
+	CURSOR pc_dep_cur( pc_parent_id IN departments.DEPARTMENT_ID%type )
+		RETURN departments%rowtype;
+
+	FUNCTION get_dep_hierarchy(dep_id IN departments.DEPARTMENT_ID%type) 
+	RETURN varchar2;
+
+	FUNCTION get_dep_hierarchy(p_dep_id IN departments.DEPARTMENT_ID%TYPE, p_parent_id IN departments.parent_id%type)
+	RETURN varchar2;
+
+END ch12_dep_pkg;
+
+CREATE OR REPLACE PACKAGE BODY ch12_dep_pkg IS 
+
+	CURSOR pc_dep_cur( pc_parent_id IN departments.DEPARTMENT_ID%type )
+		RETURN departments%rowtype
+	IS 
+		SELECT *
+		FROM DEPARTMENTS 
+		WHERE PARENT_ID = pc_parent_id;
+
+	FUNCTION get_dep_hierarchy(dep_id IN departments.DEPARTMENT_ID%type) 
+		RETURN varchar2
+	IS 
+--		vs_dep departments%rowtype;	-- *레코드는 리턴이 안되는걸로 보임
+		vs_dep_nm departments.department_name%TYPE;
+	BEGIN 
+		SELECT DEPARTMENT_NAME 
+		INTO vs_dep_nm
+		FROM DEPARTMENTS 
+		WHERE DEPARTMENT_ID = dep_id;
+
+		RETURN vs_dep_nm;
+	END get_dep_hierarchy;
+
+	FUNCTION get_dep_hierarchy(p_dep_id IN departments.DEPARTMENT_ID%TYPE, p_parent_id IN departments.parent_id%type)
+		RETURN varchar2
+	IS 
+		vs_dep_nm departments.department_name%TYPE;
+		dep_cur pc_dep_cur%rowtype;
+	BEGIN 
+		SELECT DEPARTMENT_NAME 
+		INTO vs_dep_nm
+		FROM DEPARTMENTS 
+		WHERE DEPARTMENT_ID = p_dep_id;
+
+		-- 열려있으면 닫는 작업 수행
+		IF pc_dep_cur%isopen THEN 
+			CLOSE pc_dep_cur;
+		END IF;
+	
+		OPEN pc_dep_cur(p_parent_id);
+--		dbms_output.put_line('isopen: ' || pc_depname_cur%ISOPEN);	-- *찍는건 안됨. 오류발생
+	
+		LOOP
+			FETCH pc_dep_cur INTO dep_cur;
+			EXIT WHEN pc_dep_cur%notfound;
+			dbms_output.put_line(dep_cur.DEPARTMENT_ID || ' - ' || dep_cur.DEPARTMENT_NAME);
+		END LOOP;
+		
+		RETURN vs_dep_nm;
+	END get_dep_hierarchy;
+END ch12_dep_pkg;
+
+BEGIN 
+	dbms_output.put_line('부서번호: ' || 30 || ', ' || '부서명: ' ||ch12_dep_pkg.get_dep_hierarchy(30));
+END;
+
+BEGIN 
+	dbms_output.put_line('부서번호: ' || 40 || ', ' || '부서명: ' ||ch12_dep_pkg.get_dep_hierarchy(40, 40));
+END;
