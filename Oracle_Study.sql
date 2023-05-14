@@ -4017,3 +4017,125 @@ BEGIN
 END;
 
 SELECT * FROM ch13_physicist ;
+
+
+ -- 230514
+CREATE OR REPLACE PROCEDURE ch13_bind_proc1(
+	pv_arg1 IN varchar2,
+	pn_arg2 IN NUMBER,
+	pd_arg3 IN DATE 
+)
+IS 
+BEGIN 
+	dbms_output.put_line('pv_arg1: ' || pv_arg1);
+	dbms_output.put_line('pn_arg2: ' || pn_arg2);
+	dbms_output.put_line('pd_arg3: ' || pd_arg3);
+END;
+
+DECLARE 
+	vs_data1 varchar2(30) := 'Albert Einstein';
+	vn_data2 NUMBER := 100;
+	vd_date3 DATE := to_date('1879-03-14', 'YYYY-MM-DD');
+
+	vs_sql varchar2(1000);
+BEGIN 
+	ch13_bind_proc1(vs_data1, vn_data2, vd_date3);
+
+	dbms_output.put_line('----------------------------------');
+
+	vs_sql := 'begin ch13_bind_proc1(:a, :a, :c); end;';
+
+	EXECUTE IMMEDIATE vs_sql USING vs_data1, vn_data2, vd_date3;
+END;
+
+ -- 동적 SQL로 프로시저에서 출력, 입출력 변수값 가져오기
+CREATE OR REPLACE PROCEDURE ch13_bind_proc2 (
+	pv_arg1 IN varchar2,
+	pv_arg2 OUT varchar2,
+	pv_arg3 IN OUT varchar2
+)
+IS 
+BEGIN 
+	dbms_output.put_line('pv_arg1: ' || pv_arg1);
+
+	pv_arg2 := '두 번째 OUT 변수';
+	pv_arg3 := '세 번쨰 INOUT 변수';
+END;
+
+DECLARE 
+	vs_data1 varchar2(30) := 'Albert Einstein';
+	vs_data2 varchar2(30);
+	vs_data3 varchar2(30);
+
+	vs_sql varchar2(1000);
+BEGIN 
+	vs_sql := 'begin ch13_bind_proc2(:a, :b, :c); end;';
+	EXECUTE IMMEDIATE vs_sql USING vs_data1, OUT vs_data2, IN OUT vs_data3;
+
+	dbms_output.put_line('vs_data1: ' || vs_data1);
+	dbms_output.put_line('vs_data2: ' || vs_data2);
+	dbms_output.put_line('vs_data3: ' || vs_data3);
+END;
+
+ -- 동적 SQL을 사용하여 DDL문 실행
+CREATE OR REPLACE PROCEDURE ch13_ddl_proc ( pd_arg1 date )
+IS 
+	vs_sql varchar2(1000);
+BEGIN 
+	vs_sql := 'CREATE TABLE ch13_ddl_tab ( col1 varchar2(30) )';
+	EXECUTE IMMEDIATE vs_sql;
+	
+	dbms_output.put_line('pd_arg1: ' || pd_arg1);
+END;
+
+BEGIN 
+	ch13_ddl_proc(sysdate);
+END;
+
+DESC ch13_ddl_tab;	-- *안 먹음
+
+SELECT sysdate FROM dual ;
+
+ -- 세션 파라미터 정보 변경
+CREATE OR REPLACE PROCEDURE ch13_ddl_proc ( pd_arg1 IN DATE )
+IS 
+	vs_sql varchar2(1000);
+BEGIN 
+	vs_sql := 'alter session set nls_date_format = "YYYY/MM/DD"';
+	EXECUTE IMMEDIATE vs_sql;
+	dbms_output.put_line('pd_arg1: ' || pd_arg1);
+END;
+
+BEGIN 
+	ch13_ddl_proc(sysdate);
+END;
+
+--TRUNCATE TABLE CH13_PHYSICIST ;
+
+INSERT INTO CH13_PHYSICIST VALUES (1, 'Galileo Galilei', to_date('1564-02-15', 'YYYY-MM-DD'));
+INSERT INTO CH13_PHYSICIST VALUES (2, 'Isaac Newton', to_date('1643-01-04', 'YYYY-MM-DD'));
+INSERT INTO CH13_PHYSICIST VALUES (3, 'Max Plank', to_date('1858-04-23', 'YYYY-MM-DD'));
+INSERT INTO CH13_PHYSICIST VALUES (4, 'Albert Einstein', to_date('1879-03-14', 'YYYY-MM-DD'));
+COMMIT;
+
+SELECT * FROM CH13_PHYSICIST ;
+
+ -- OPEN FOR문
+DECLARE 
+	TYPE query_physicist IS REF CURSOR;
+	myPhysicist query_physicist;
+	empPhysicist CH13_PHYSICIST%rowtype;
+
+	vs_sql varchar2(1000);
+BEGIN 
+	vs_sql := 'select * from CH13_PHYSICIST';
+
+	OPEN myPhysicist FOR vs_sql;
+	LOOP
+		FETCH myPhysicist INTO empPhysicist;
+		EXIT WHEN myPhysicist%notfound;
+		dbms_output.put_line(empPhysicist.names);
+	END LOOP;
+	
+	CLOSE myPhysicist;
+END;
