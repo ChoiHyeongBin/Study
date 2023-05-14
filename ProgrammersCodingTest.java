@@ -1,71 +1,62 @@
 package codingTest;
 
 import java.util.Arrays;
-import java.util.HashSet;
-import java.util.Set;
+import java.util.Collections;
+import java.util.LinkedList;
+import java.util.List;
 
 public class ProgrammersCodingTest {
 
 	public static void main(String[] args) {
-		int[] people = new int[] {50, 30, 20, 70, 10};
-//		int[] people = new int[] {70, 80, 50};
-//		int[] people = new int[] {70, 50, 40, 50};
-		int limit = 100;
+		int k = 4;
+		int[] score = new int[] {0, 300, 40, 300, 20, 70, 150, 50, 500, 1000};
 		
-		solution(people, limit);
+		solution(k, score);
 	}
 
-	// LV2 구명보트
-	public static int solution(int[] people, int limit) {
-		int answer = 0;
-		
-		Arrays.sort(people);
-		System.out.println("people: " + Arrays.toString(people));
-		
-		int min = 0;
-		for (int max = people.length - 1; min <= max; max--) {
-			System.out.println("max: " + max);
-			
-			System.out.println("people[min]: " + people[min]);
-			System.out.println("people[max]: " + people[max]);
-			System.out.println();
-			if (people[min] + people[max] <= limit) {
-				min++;
+	// LV1 명예의 전당 (1)
+	public static int[] solution(int k, int[] score) {
+        int[] answer = new int[score.length];
+        List<Integer> scoreList = new LinkedList<Integer>();
+        
+        for (int i = 0; i < score.length; i++) {
+        	scoreList.add(score[i]);
+        	Collections.sort(scoreList, Collections.reverseOrder());
+        	System.out.println(scoreList);
+        	
+        	// 4일차부터 처리
+        	if (i >= k) {
+        		answer[i] = scoreList.get(k - 1);
+			} else { 
+				answer[i] = scoreList.get(scoreList.size() - 1);
 			}
-			
-			answer++;
-		}
-		
-		System.out.println("answer: " + answer);
-		return answer;
-		
-		// *테스트 케이스는 통과하나, 채점시 시간초과 에러
-        /* int answer = 0;
-        Set<Integer> rescuePeople = null;
-        Integer[] arr = Arrays.stream(people).boxed().toArray(Integer[]::new);
-        
-        for (int i = 0; i < people.length; i++) {
-        	for (int j = i + 1; j < people.length; j++) {
-//        		System.out.println(people[i] + people[j]);
-        		
-        		if (people[i] + people[j] <= 100) {
-        			System.out.println("people[i]: " + people[i]);
-        			System.out.println("people[j]: " + people[j]);
-        			System.out.println();
-        			
-        			rescuePeople = new HashSet<Integer>(Arrays.asList(arr));
-        		}
-        	}
+				 
         }
         
-        if (rescuePeople == null) {
-        	answer = people.length;
-        } else {
-        	answer = rescuePeople.size();
+        System.out.println("answer: " + Arrays.toString(answer));
+        return answer;
+		
+		// *PriorityQueue를 사용한 방법
+		/* int[] answer = new int[score.length];
+
+        PriorityQueue<Integer> priorityQueue = new PriorityQueue<>();
+
+        int temp = 0;
+
+        for(int i = 0; i < score.length; i++) {
+
+            priorityQueue.add(score[i]);
+            System.out.println("priorityQueue: " + priorityQueue);
+            if (priorityQueue.size() > k) {
+            	System.out.println("탔음, 인덱스 " + i);
+                priorityQueue.poll();
+            }
+
+            answer[i] = priorityQueue.peek();
         }
-        
-        System.out.println("rescuePeople: " + rescuePeople);
-        System.out.println("answer: " + answer);
+
+
+        System.out.println("answer: " + Arrays.toString(answer));
         return answer; */
     }
 
