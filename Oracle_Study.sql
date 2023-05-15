@@ -4139,3 +4139,133 @@ BEGIN
 	
 	CLOSE myPhysicist;
 END;
+
+
+ -- 230515
+ -- 바인드 변수를 활용한 OPEN FOR문
+DECLARE 
+	myPhysicist sys_refcursor;
+
+	empPhysicist CH13_PHYSICIST%rowtype;
+
+	vs_sql varchar2(1000);
+	vn_id CH13_PHYSICIST.ids%TYPE := 1;
+	vs_names CH13_PHYSICIST.names%TYPE := 'Albert%';
+BEGIN 
+	vs_sql := 'select * from CH13_PHYSICIST where ids > :a and names like :a ';
+	OPEN myPhysicist FOR vs_sql USING vn_id, vs_names;
+
+	LOOP
+		FETCH myPhysicist INTO empPhysicist;
+		EXIT WHEN myPhysicist%notfound;
+		dbms_output.put_line(empPhysicist.names);
+	END LOOP;
+	
+	CLOSE myPhysicist;
+END;
+
+SELECT * FROM CH13_PHYSICIST ;
+
+ -- BULK COLLECT INTO를 사용한 정적 SQL
+DECLARE
+	TYPE rec_physicist IS RECORD (
+		ids CH13_PHYSICIST.ids%TYPE,
+		names CH13_PHYSICIST.names%TYPE,
+		birth_dt CH13_PHYSICIST.birth_dt%type
+	);
+
+	TYPE NT_physicist IS TABLE OF rec_physicist;
+
+	vr_physicist NT_physicist;
+BEGIN 
+	SELECT *
+	BULK COLLECT INTO vr_physicist
+	FROM CH13_PHYSICIST;
+
+	FOR i IN 1..vr_physicist.count
+	LOOP
+		dbms_output.put_line(vr_physicist(i).names);
+	END LOOP;
+END;
+
+ -- BULK COLLECT INTO를 사용한 동적 SQL
+DECLARE
+	TYPE rec_physicist IS RECORD (
+		ids CH13_PHYSICIST.ids%TYPE,
+		names CH13_PHYSICIST.names%TYPE,
+		birth_dt CH13_PHYSICIST.birth_dt%type
+	);
+
+	TYPE NT_physicist IS TABLE OF rec_physicist;
+
+	vr_physicist NT_physicist;
+
+	vs_sql varchar2(1000);
+	vn_ids CH13_PHYSICIST.ids%TYPE := 1;
+BEGIN 
+	vs_sql := 'select * from CH13_PHYSICIST where ids > :a';
+
+	EXECUTE IMMEDIATE vs_sql BULK COLLECT INTO vr_physicist USING vn_ids;
+	
+	FOR i IN 1..vr_physicist.count
+	LOOP
+		dbms_output.put_line(vr_physicist(i).names);
+	END LOOP;
+END;
+
+ -- DBMS_SQL을 사용한 동적 SQL (NDS와 다른 방식)
+DECLARE 
+	vn_emp_id employees.employee_id%TYPE;
+	vs_emp_name employees.emp_name%TYPE;
+	vs_job_id employees.job_id%TYPE;
+
+	vs_sql varchar2(1000);
+
+	vs_job employees.job_id%TYPE := 'SA_REP';
+	vn_sal employees.salary%TYPE := 7000;
+	vn_manager employees.manager_id%TYPE := 148;
+
+	-- 1. 커서를 연다
+	vn_cur_id NUMBER := dbms_sql.open_cursor();
+	vn_return NUMBER;
+BEGIN 
+	vs_sql := 'select employee_id, emp_name, job_id
+			   from employees
+			   where job_id = :a
+			   and salary < :b
+			   and manager_id = :c';
+			  
+	 -- 2. 파싱
+	dbms_sql.parse(vn_cur_id, vs_sql, dbms_sql.native);
+
+	 -- 3. 바인드 변수 연결
+	dbms_sql.bind_variable(vn_cur_id, ':a', vs_job);
+	dbms_sql.bind_variable(vn_cur_id, ':b', vn_sal);
+	dbms_sql.bind_variable(vn_cur_id, ':c', vn_manager);
+
+	 -- 4. 결과 선택 컬럼 정의
+	dbms_sql.define_column(vn_cur_id, 1, vn_emp_id);
+	dbms_sql.define_column(vn_cur_id, 2, vs_emp_name, 80);
+	dbms_sql.define_column(vn_cur_id, 3, vs_job_id, 10);
+
+	 -- 5. 쿼리 실행
+	vn_return := dbms_sql.execute(vn_cur_id);
+
+	 -- 6. 결과 패치
+	LOOP
+		IF dbms_sql.fetch_rows (vn_cur_id) = 0 THEN 
+			EXIT;
+		END IF;
+		
+		 -- 7. 패치된 결과 값 받아오기
+		dbms_sql.column_value(vn_cur_id, 1, vn_emp_id);
+		dbms_sql.column_value(vn_cur_id, 2, vs_emp_name);
+		dbms_sql.column_value(vn_cur_id, 3, vs_job_id);
+	
+		dbms_output.put_line('vn_emp_id: ' || vn_emp_id);
+		dbms_output.put_line('vs_emp_name: ' || vs_emp_name);
+		dbms_output.put_line('vs_job_id: ' || vs_job_id);
+	END LOOP;
+
+	dbms_sql.close_cursor(vn_cur_id);
+END;
