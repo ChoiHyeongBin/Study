@@ -1,63 +1,57 @@
 package codingTest;
 
-import java.util.Arrays;
-import java.util.Collections;
-import java.util.LinkedList;
-import java.util.List;
-
 public class ProgrammersCodingTest {
 
-	public static void main(String[] args) {
-		int k = 4;
-		int[] score = new int[] {0, 300, 40, 300, 20, 70, 150, 50, 500, 1000};
-		
-		solution(k, score);
-	}
-
-	// LV1 명예의 전당 (1)
-	public static int[] solution(int k, int[] score) {
-        int[] answer = new int[score.length];
-        List<Integer> scoreList = new LinkedList<Integer>();
+    public static void main(String[] args) {
+    	int n = 8;
+    	int a = 3;
+    	int b = 4;
+    	
+    	solution(n, a, b);
+    }
+	
+    // LV2 예상 대진표
+    public static int solution(int n, int a, int b) {
+        int answer = 0;
         
-        for (int i = 0; i < score.length; i++) {
-        	scoreList.add(score[i]);
-        	Collections.sort(scoreList, Collections.reverseOrder());
-        	System.out.println(scoreList);
+        /* 참가자의 번호가 짝수인 경우 참가자 번호 / 2 가 참가자의 라운드 번호가 되고
+        참가자의 번호가 홀수인 경우 참가자 번호 / 2 + 1이 참가자의 라운드 번호가 된다
+
+        라운드의 번호는 해당 라운드가 끝난 후 승자의 새 참가자 번호가 되기 때문에 위의 과정을 반복하여 a와 b가 한 라운드에 
+        들어 있는 경우를 찾아내면 된다 */
+        while (a != b) {
+        	a = (a / 2) + (a % 2);
+        	b = (b / 2) + (b % 2);
         	
-        	// 4일차부터 처리
-        	if (i >= k) {
-        		answer[i] = scoreList.get(k - 1);
-			} else { 
-				answer[i] = scoreList.get(scoreList.size() - 1);
-			}
-				 
+        	System.out.println("a: " + a);
+        	System.out.println("b: " + b);
+        	System.out.println();
+        	answer++;
         }
         
-        System.out.println("answer: " + Arrays.toString(answer));
-        return answer;
-		
-		// *PriorityQueue를 사용한 방법
-		/* int[] answer = new int[score.length];
+        System.out.println("answer: " + answer);
+        
+        /* List<Integer> linkNumList = new LinkedList<Integer>();
 
-        PriorityQueue<Integer> priorityQueue = new PriorityQueue<>();
-
-        int temp = 0;
-
-        for(int i = 0; i < score.length; i++) {
-
-            priorityQueue.add(score[i]);
-            System.out.println("priorityQueue: " + priorityQueue);
-            if (priorityQueue.size() > k) {
-            	System.out.println("탔음, 인덱스 " + i);
-                priorityQueue.poll();
-            }
-
-            answer[i] = priorityQueue.peek();
+        for (int i = 1; i <= n; i++) {
+        	linkNumList.add(i);
         }
 
-
-        System.out.println("answer: " + Arrays.toString(answer));
-        return answer; */
+        System.out.println("linkNumList: " + linkNumList);
+        
+        for (int i = 0; i < linkNumList.size(); i++) {
+        	if ((i + i) + 1 < linkNumList.size()) {
+        		System.out.println(linkNumList.get(i + i));
+        		System.out.println(linkNumList.get((i + i) + 1));
+        		System.out.println();
+        		
+        		if (linkNumList.get(i + i) < linkNumList.get((i + i) + 1)) {
+        			// *a, b에 해당하면서 1명씩 줄여나갈 방법이 없음
+        		}
+        	}
+        } */
+        
+        return answer;
     }
 
 }
