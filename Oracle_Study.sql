@@ -4269,3 +4269,105 @@ BEGIN
 
 	dbms_sql.close_cursor(vn_cur_id);
 END;
+
+
+ -- 230517
+SELECT * FROM CH13_PHYSICIST ;
+
+--INSERT INTO CH13_PHYSICIST VALUES (2, 'Isaac Newton', to_date('1643-01-01', 'YYYY-MM-DD'));
+
+ -- DBMS_SQL로 UPDATE문 처리
+DECLARE 
+	vn_ids CH13_PHYSICIST.ids%TYPE := 3;
+	vs_name CH13_PHYSICIST.names%TYPE := ' UPDATED';
+
+	vs_sql varchar2(1000);
+
+	vn_cur_id NUMBER := dbms_sql.open_cursor();	-- 1. 커서를 연다.
+	vn_return NUMBER;
+BEGIN 
+	vs_sql := 'UPDATE CH13_PHYSICIST set names = names || :a where ids < :b';	-- 기존 데이터(names) + ' UPDATED'
+
+	 -- 2. 파싱
+	dbms_sql.parse(vn_cur_id, vs_sql, dbms_sql.native);
+
+	 -- 3. 바인드 변수 연결
+	dbms_sql.bind_variable(vn_cur_id, ':a', vs_name);
+	dbms_sql.bind_variable(vn_cur_id, ':b', vn_ids);
+
+	 -- 4. 쿼리 실행
+	vn_return := dbms_sql.execute(vn_cur_id);
+
+	dbms_sql.close_cursor(vn_cur_id);
+	dbms_output.put_line('UPDATE 결과건수: ' || vn_return);
+	COMMIT;
+END;
+
+ -- DBMS_SQL로 DELETE문 처리
+DECLARE 
+	vn_ids CH13_PHYSICIST.ids%TYPE := 3;
+
+	vs_sql varchar2(1000);
+
+	vn_cur_id NUMBER := dbms_sql.open_cursor();	-- 1. 커서를 연다.
+	vn_return NUMBER;
+BEGIN 
+	vs_sql := 'DELETE CH13_PHYSICIST where ids < :b';
+
+	 -- 2. 파싱
+	dbms_sql.parse(vn_cur_id, vs_sql, dbms_sql.native);
+
+	 -- 3. 바인드 변수 연결
+	dbms_sql.bind_variable(vn_cur_id, ':b', vn_ids);
+
+	 -- 4. 쿼리 실행
+	vn_return := dbms_sql.execute(vn_cur_id);
+
+	dbms_sql.close_cursor(vn_cur_id);
+	dbms_output.put_line('DELETE 결과건수: ' || vn_return);
+	COMMIT;
+END;
+
+--TRUNCATE TABLE CH13_PHYSICIST ;
+
+DECLARE 
+	vn_ids_array  dbms_sql.number_table;
+	vs_name_array dbms_sql.varchar2_table;
+	vd_dt_array   dbms_sql.date_table;
+
+	vs_sql varchar2(1000);
+
+	vn_cur_id NUMBER := dbms_sql.open_cursor();
+	vn_return NUMBER;
+BEGIN 
+	vn_ids_array(1) := 1;
+	vs_name_array(1) := 'Galileo Galilei';
+	vd_dt_array(1) := to_date('1564-02-15', 'YYYY-MM-DD');
+
+	vn_ids_array(2) := 2;
+	vs_name_array(2) := 'Isaac Newton';
+	vd_dt_array(2) := to_date('1643-01-04', 'YYYY-MM-DD');
+
+	vn_ids_array(3) := 3;
+	vs_name_array(3) := 'Max Plank';
+	vd_dt_array(3) := to_date('1858-04-23', 'YYYY-MM-DD');
+
+	vn_ids_array(4) := 4;
+	vs_name_array(4) := 'Albert Einstein';
+	vd_dt_array(4) := to_date('1879-03-14', 'YYYY-MM-DD');
+
+	vs_sql := 'INSERT INTO CH13_PHYSICIST values (:a, :b, :c)';
+
+	dbms_sql.parse(vn_cur_id, vs_sql, dbms_sql.native);
+
+	dbms_sql.bind_array(vn_cur_id, ':a', vn_ids_array);
+	dbms_sql.bind_array(vn_cur_id, ':b', vs_name_array);
+	dbms_sql.bind_array(vn_cur_id, ':c', vd_dt_array);
+
+	vn_return := dbms_sql.execute(vn_cur_id);
+
+	dbms_sql.close_cursor(vn_cur_id);
+
+	dbms_output.put_line('결과건수: ' || vn_return);
+	COMMIT;
+END;
