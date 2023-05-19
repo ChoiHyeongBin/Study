@@ -4371,3 +4371,232 @@ BEGIN
 	dbms_output.put_line('결과건수: ' || vn_return);
 	COMMIT;
 END;
+
+
+ -- 230519
+SELECT * FROM CH13_PHYSICIST ;
+
+ -- BIND_ARRAY로 UPDATE, DELETE 처리
+DECLARE 
+	vn_ids_array  dbms_sql.number_table;
+	vs_name_array dbms_sql.varchar2_table;
+
+	vs_sql varchar2(1000);
+
+	vn_cur_id NUMBER := dbms_sql.open_cursor();
+	vn_return NUMBER;
+BEGIN 
+	vn_ids_array(1) := 1;
+	vs_name_array(1) := 'Galileo Galilei';
+
+	vn_ids_array(2) := 2;
+	vs_name_array(2) := 'Isaac Newton';
+
+	vn_ids_array(3) := 3;
+	vs_name_array(3) := 'Max Plank';
+
+	vn_ids_array(4) := 4;
+	vs_name_array(4) := 'Albert Einstein';
+
+	vs_sql := 'UPDATE CH13_PHYSICIST set names = :a where ids = :b';
+
+	dbms_sql.parse(vn_cur_id, vs_sql, dbms_sql.native);
+
+	dbms_sql.bind_array(vn_cur_id, ':a', vs_name_array);
+	dbms_sql.bind_array(vn_cur_id, ':b', vn_ids_array);
+
+	vn_return := dbms_sql.execute(vn_cur_id);
+
+	dbms_sql.close_cursor(vn_cur_id);
+
+	dbms_output.put_line('결과건수: ' || vn_return);
+	COMMIT;
+END;
+
+ -- TO_REFCURSOR로 커서 변수에 결과 받기
+DECLARE 
+	vc_cur sys_refcursor;
+	va_emp_id dbms_sql.number_table;
+	va_emp_name dbms_sql.varchar2_table;
+
+	vs_sql varchar2(1000);
+
+	vs_job employees.job_id%TYPE := 'SA_REP';
+	vn_sal employees.salary%TYPE := 9000;
+	vn_manager employees.manager_id%TYPE := 148;
+
+	-- 1. 커서를 연다
+	vn_cur_id NUMBER := dbms_sql.open_cursor();
+	vn_return NUMBER;
+BEGIN 
+	vs_sql := 'select employee_id, emp_name
+			   from employees
+			   where job_id = :a
+			   and salary < :b
+			   and manager_id = :c';
+			  
+	 -- 2. 파싱
+	dbms_sql.parse(vn_cur_id, vs_sql, dbms_sql.native);
+
+	 -- 3. 바인드 변수 연결
+	dbms_sql.bind_variable(vn_cur_id, ':a', vs_job);
+	dbms_sql.bind_variable(vn_cur_id, ':b', vn_sal);
+	dbms_sql.bind_variable(vn_cur_id, ':c', vn_manager);
+
+	 -- 4. 쿼리 실행
+	vn_return := dbms_sql.execute(vn_cur_id);
+
+	 -- 5. 커서로 변환
+	vc_cur := dbms_sql.to_refcursor(vn_cur_id);
+
+	 -- 6. 결과 패치
+	FETCH vc_cur BULK COLLECT INTO va_emp_id, va_emp_name;
+
+	FOR i IN 1..va_emp_id.count LOOP
+		dbms_output.put_line(va_emp_id(i) || ' - ' || va_emp_name(i));
+	END LOOP;
+	
+	CLOSE vc_cur;
+END;
+
+select employee_id, emp_name
+from employees
+where job_id = 'SA_REP'
+and salary < 9000
+and manager_id = 148
+;
+
+ -- DBMS_SQL 패키지를 이용해 컬럼 값을 세로로 출력하기
+CREATE OR REPLACE PROCEDURE print_table(p_query IN varchar2)
+IS 
+	l_theCursor integer DEFAULT DBMS_SQL.OPEN_cursor;
+	l_columnValue varchar2(4000);
+	l_status integer;
+	l_descTbl dbms_sql.desc_tab;
+	l_colCnt NUMBER;
+BEGIN 
+	dbms_sql.parse(l_theCursor, p_query, dbms_sql.native);
+
+	dbms_sql.describe_columns(l_theCursor, l_colCnt, l_descTbl);
+
+	FOR i IN 1..l_colCnt
+	LOOP
+		dbms_sql.define_column(l_theCursor, i, l_columnValue, 4000);
+	END LOOP;
+	
+	l_status := dbms_sql.execute(l_theCursor);
+
+	WHILE ( dbms_sql.fetch_rows(l_theCursor) > 0 )
+	LOOP
+		FOR i IN 1..l_colCnt
+		LOOP
+			dbms_sql.column_value(l_theCursor, i, l_columnValue);
+			dbms_output.put_line(rpad(l_descTbl(i).col_name, 30) || ': ' || l_columnValue);
+		END LOOP;
+		dbms_output.put_line('--------------------');
+	END LOOP;
+	
+	dbms_sql.close_cursor(l_theCursor);
+END;
+
+BEGIN 
+	print_table('select * from CH13_PHYSICIST');
+END;
+
+ -- 신규 테이블에 데이터 이관
+CREATE OR REPLACE PROCEDURE insert_ddl(p_table IN varchar2)
+IS 
+	l_theCursor integer DEFAULT DBMS_SQL.OPEN_cursor;
+	l_columnValue varchar2(4000);
+	l_status integer;
+	l_descTbl dbms_sql.desc_tab;
+	l_colCnt NUMBER;
+
+	v_sel_sql varchar2(1000);
+	v_ins_sql varchar2(1000);
+BEGIN 
+	v_sel_sql := 'select * from ' || p_table || ' where rownum = 1';
+	
+	dbms_sql.parse(l_theCursor, v_sel_sql, dbms_sql.native);
+
+	dbms_sql.describe_columns(l_theCursor, l_colCnt, l_descTbl);
+
+	v_ins_sql := 'insert into ' || p_table || ' ( ';
+
+	FOR i IN 1..l_colCnt
+	LOOP
+		IF i = l_colCnt THEN 
+			v_ins_sql := v_ins_sql || l_descTbl(i).col_name || ' )';
+		ELSE 
+			v_ins_sql := v_ins_sql || l_descTbl(i).col_name || ', ';
+		END IF;
+	END LOOP;
+	
+	dbms_output.put_line(v_ins_sql);
+
+	dbms_sql.close_cursor(l_theCursor);
+END;
+
+BEGIN 
+	insert_ddl('CH13_PHYSICIST');
+END;
+
+BEGIN 
+	insert_ddl('customers');
+END;
+
+ -- Self-Check 1
+CREATE OR REPLACE PROCEDURE ch13_exam_crt_table_proc(pv_src_table IN varchar2)
+IS 
+	vs_sql varchar2(1000);
+BEGIN 
+	vs_sql := 'CREATE TABLE ' || pv_src_table || '_NEW AS
+			   SELECT * FROM ' || pv_src_table || ' where 1 = 2';
+			  
+	EXECUTE IMMEDIATE vs_sql;
+END;
+
+BEGIN 
+	ch13_exam_crt_table_proc('CH13_PHYSICIST');
+END;
+
+SELECT * FROM CH13_PHYSICIST_NEW ;
+
+ -- Self-Check 2
+CREATE OR REPLACE PROCEDURE ch13_exam_crt_table_proc(pv_src_table IN varchar2)
+IS 
+	vs_sql varchar2(1000);
+	vn_cnt NUMBER := 0;
+
+	e_exist_table EXCEPTION;
+BEGIN 
+	vs_sql := 'SELECT count(*) from tabs where TABLE_NAME = ''' || pv_src_table || '_NEW''';
+	dbms_output.put_line('vs_sql: ' || vs_sql);
+
+	EXECUTE IMMEDIATE vs_sql INTO vn_cnt;
+	
+	dbms_output.put_line('vn_cnt: ' || vn_cnt);
+
+	IF vn_cnt > 0 THEN 
+		raise e_exist_table;
+	END IF;
+	
+	vs_sql := 'CREATE TABLE ' || pv_src_table || '_NEW AS
+			   SELECT * FROM ' || pv_src_table || ' where 1 = 2';
+			  
+	EXECUTE IMMEDIATE vs_sql;
+
+EXCEPTION 
+WHEN e_exist_table THEN 
+	dbms_output.put_line(pv_src_table || '_NEW 테이블이 이미 존재합니다!');
+	ROLLBACK;
+WHEN OTHERS THEN 
+	dbms_output.put_line('에러: ' || sqlerrm);
+	ROLLBACK;
+END;
+
+BEGIN 
+	ch13_exam_crt_table_proc('CH13_PHYSICIST');
+END;
+
+SELECT * FROM CH13_PHYSICIST_NEW ;
