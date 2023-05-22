@@ -4600,3 +4600,243 @@ BEGIN
 END;
 
 SELECT * FROM CH13_PHYSICIST_NEW ;
+
+
+ -- 230522
+ -- Self-Check 3
+CREATE TABLE CH13_PHYSICIST_2 AS
+SELECT *
+FROM CH13_PHYSICIST
+;
+
+SELECT * FROM CH13_PHYSICIST_2 ;
+
+--TRUNCATE TABLE CH13_PHYSICIST_2 ;
+
+DECLARE 
+	TYPE rec_physicist IS RECORD (
+		IDS			CH13_PHYSICIST.ids%TYPE,
+		NAMES		CH13_PHYSICIST.NAMES%TYPE,
+		BIRTH_DT 	CH13_PHYSICIST.BIRTH_DT%type
+	);
+
+	TYPE NT_physicist IS TABLE OF rec_physicist;
+
+	vr_physicist NT_physicist;
+BEGIN 
+	SELECT *
+	BULK COLLECT INTO vr_physicist
+	FROM CH13_PHYSICIST;
+
+	FOR i IN 1..vr_physicist.count
+	LOOP
+		INSERT INTO CH13_PHYSICIST_2 VALUES (vr_physicist(i).IDS, vr_physicist(i).NAMES, vr_physicist(i).BIRTH_DT);
+	END LOOP;
+
+	COMMIT;
+END;
+
+ -- Self-Check 4, 5
+DECLARE 
+	TYPE rec_physicist IS RECORD (
+		IDS			CH13_PHYSICIST.ids%TYPE,
+		NAMES		CH13_PHYSICIST.NAMES%TYPE,
+		BIRTH_DT 	CH13_PHYSICIST.BIRTH_DT%type
+	);
+
+	TYPE NT_physicist IS TABLE OF rec_physicist;
+
+	vr_physicist NT_physicist;
+
+	vn_ids_array dbms_sql.number_table;
+	vs_name_array dbms_sql.varchar2_table;
+	vd_dt_array dbms_sql.date_table;
+
+	vs_sql varchar2(1000);
+
+	vn_cur_id NUMBER := dbms_sql.open_cursor();
+	vn_return NUMBER;
+BEGIN 
+	SELECT *
+	BULK COLLECT INTO vr_physicist
+	FROM CH13_PHYSICIST;
+
+	FOR i IN 1..vr_physicist.count
+	LOOP
+		vn_ids_array(i) := vr_physicist(i).IDS;
+		vs_name_array(i) := vr_physicist(i).NAMES;
+		vd_dt_array(i) := vr_physicist(i).BIRTH_DT;
+	END LOOP;
+
+	vs_sql := 'insert into CH13_PHYSICIST_2 values (:a, :b, :c)';
+
+	dbms_sql.parse(vn_cur_id, vs_sql, dbms_sql.native);
+
+	dbms_sql.bind_array(vn_cur_id, ':a', vn_ids_array);
+	dbms_sql.bind_array(vn_cur_id, ':b', vs_name_array);
+	dbms_sql.bind_array(vn_cur_id, ':c', vd_dt_array);
+
+	vn_return := dbms_sql.execute(vn_cur_id);
+
+	dbms_sql.close_cursor(vn_cur_id);
+	dbms_output.put_line('결과건수: ' || vn_return);
+	COMMIT;
+END;
+
+SELECT * FROM CH13_PHYSICIST_2 ;
+--TRUNCATE TABLE CH13_PHYSICIST_2 ;
+
+ -- 트랜잭션 GTT
+CREATE GLOBAL TEMPORARY TABLE ch14_tranc_gtt (
+	ids NUMBER,
+	names varchar2(50),
+	birth_dt DATE 
+)
+ON COMMIT DELETE ROWS;
+
+SELECT * FROM ch14_tranc_gtt ;
+
+DECLARE 
+	vn_cnt int := 0;
+	vn_cnt2 int := 0;
+BEGIN 
+	INSERT INTO ch14_tranc_gtt 
+	SELECT *
+	FROM CH13_PHYSICIST ;
+
+	SELECT COUNT(*) 
+	INTO vn_cnt
+	FROM ch14_tranc_gtt;
+
+	COMMIT;
+
+	SELECT COUNT(*) 
+	INTO vn_cnt2
+	FROM ch14_tranc_gtt;
+
+	dbms_output.put_line('COMMIT 전: ' || vn_cnt);
+	dbms_output.put_line('COMMIT 후: ' || vn_cnt2);
+END;
+
+CREATE GLOBAL TEMPORARY TABLE ch14_sess_gtt (
+	ids NUMBER,
+	names varchar2(50),
+	birth_dt DATE 
+)
+ON COMMIT PRESERVE ROWS;
+
+ -- 세션 GTT
+DECLARE 
+	vn_cnt int := 0;
+	vn_cnt2 int := 0;
+BEGIN 
+	INSERT INTO ch14_sess_gtt 
+	SELECT *
+	FROM CH13_PHYSICIST ;
+
+	SELECT COUNT(*) 
+	INTO vn_cnt
+	FROM ch14_sess_gtt;
+
+	COMMIT;
+
+	SELECT COUNT(*) 
+	INTO vn_cnt2
+	FROM ch14_sess_gtt;
+
+	dbms_output.put_line('COMMIT 전: ' || vn_cnt);
+	dbms_output.put_line('COMMIT 후: ' || vn_cnt2);
+END;
+
+SELECT * FROM ch14_sess_gtt ;
+
+ -- 사용자 정의 테이블 함수
+CREATE OR REPLACE TYPE ch14_num_nt IS TABLE OF NUMBER;	-- 중첩 테이블(컬렉션)
+
+CREATE OR REPLACE FUNCTION fn_ch14_table1 (p_n number)
+	RETURN ch14_num_nt
+IS 
+	vnt_return ch14_num_nt := ch14_num_nt();
+BEGIN 
+	FOR i IN 1..p_n
+	LOOP
+		vnt_return.extend;
+		vnt_return(i) := i;
+	END LOOP;
+
+	RETURN vnt_return;
+END;
+
+SELECT fn_ch14_table1(10) FROM dual ;
+
+SELECT * FROM table(fn_ch14_table1(10));
+
+ -- OBJECT
+CREATE OR REPLACE TYPE ch14_obj_type1 AS OBJECT (
+	varchar_col1 varchar2(100),
+	varchar_col2 varchar2(100),
+	num_col		 NUMBER,
+	date_col	 date
+);
+
+ -- OBJECT 형 중첩테이블
+CREATE OR REPLACE TYPE ch14_cmplx_nt IS TABLE OF ch14_obj_type1;
+
+ -- 패키지
+CREATE OR REPLACE PACKAGE ch14_empty_pkg
+IS 
+	 -- 커서
+	TYPE emp_refc_t IS REF CURSOR RETURN employees%rowtype;
+END ch14_empty_pkg;
+
+ -- 커서를 매개변수로 받아, OBJECT 타입을 반환하는 테이블 함수
+CREATE OR REPLACE FUNCTION fn_ch14_table2(p_cur ch14_empty_pkg.emp_refc_t)
+	RETURN ch14_cmplx_nt
+IS 
+	v_cur p_cur%rowtype;
+
+	vnt_return ch14_cmplx_nt := ch14_cmplx_nt();
+BEGIN 
+	LOOP
+		FETCH p_cur INTO v_cur;
+		EXIT WHEN p_cur%notfound;
+	
+		vnt_return.extend();
+		vnt_return(vnt_return.last) := ch14_obj_type1(NULL, NULL, NULL, NULL);
+	
+		vnt_return(vnt_return.last).varchar_col1 := v_cur.emp_name;
+		vnt_return(vnt_return.last).varchar_col2 := v_cur.phone_number;
+		vnt_return(vnt_return.last).num_col 	 := v_cur.employee_id;
+		vnt_return(vnt_return.last).date_col 	 := v_cur.hire_date;
+	END LOOP;
+
+	RETURN vnt_return;
+END;
+
+SELECT *
+FROM table(fn_ch14_table2(CURSOR (SELECT * FROM EMPLOYEES WHERE rownum < 6)));
+
+CREATE OR REPLACE FUNCTION fn_ch14_pipe_table(p_n number)
+	RETURN ch14_num_nt -- 중첩테이블 컬렉션
+	pipelined 
+IS 
+	vnt_return ch14_num_nt := ch14_num_nt();
+BEGIN 
+	FOR i IN 1..p_n
+	LOOP
+		vnt_return.extend;
+		vnt_return(i) := i;
+	
+		pipe ROW (vnt_return(i));
+	END LOOP;
+	RETURN;
+END;
+
+SELECT *
+FROM table(fn_ch14_pipe_table(10));
+
+SELECT *
+FROM table(fn_ch14_table1(4000000));
+
+SELECT *
+FROM table(fn_ch14_pipe_table(4000000));
