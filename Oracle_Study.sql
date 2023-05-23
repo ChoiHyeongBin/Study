@@ -4840,3 +4840,119 @@ FROM table(fn_ch14_table1(4000000));
 
 SELECT *
 FROM table(fn_ch14_pipe_table(4000000));
+
+
+ -- 230523
+ -- PIPE ROW 문 여러번 쓰기
+CREATE OR REPLACE FUNCTION fn_ch14_pipe_table2 ( p_cur ch14_empty_pkg.emp_refc_t )
+	RETURN ch14_cmplx_nt
+	pipelined
+IS 
+	v_cur p_cur%rowtype;
+
+	vnt_return ch14_cmplx_nt := ch14_cmplx_nt();
+BEGIN 
+	LOOP
+		FETCH p_cur INTO v_cur;
+		EXIT WHEN p_cur%notfound;
+	
+		vnt_return.extend();
+		vnt_return(vnt_return.last) := ch14_obj_type1(NULL, NULL, NULL, NULL);
+		vnt_return(vnt_return.last).varchar_col1 := v_cur.emp_name;
+		vnt_return(vnt_return.last).varchar_col2 := v_cur.phone_number;
+		vnt_return(vnt_return.last).num_col 	 := v_cur.employee_id;
+		vnt_return(vnt_return.last).date_col 	 := v_cur.hire_date;
+		pipe ROW (vnt_return(vnt_return.last));
+	
+		vnt_return(vnt_return.last).varchar_col1 := v_cur.job_id;
+		vnt_return(vnt_return.last).varchar_col2 := v_cur.email;
+		pipe ROW (vnt_return(vnt_return.last));
+	END LOOP;
+	RETURN;
+END;
+
+SELECT *
+FROM table(fn_ch14_pipe_table2(CURSOR (SELECT * FROM EMPLOYEES WHERE rownum < 6 ORDER BY employee_id ASC )));
+
+SELECT * FROM EMPLOYEES WHERE emp_name = 'Steven King' ;
+
+ -- 학생들의 과목별 성적을 담은 테이블
+CREATE TABLE ch14_score_table (
+	years	 varchar2(4),	-- 연도
+	gubun 	 varchar2(30),	-- 구분(중간/기말)
+	subjects varchar2(30),	-- 과목
+	score	 NUMBER			-- 점수
+);
+
+INSERT INTO ch14_score_table VALUES ('2014', '중간고사', '국어', 92);
+INSERT INTO ch14_score_table VALUES ('2014', '중간고사', '영어', 87);
+INSERT INTO ch14_score_table VALUES ('2014', '중간고사', '수학', 67);
+INSERT INTO ch14_score_table VALUES ('2014', '중간고사', '과학', 80);
+INSERT INTO ch14_score_table VALUES ('2014', '중간고사', '지리', 93);
+INSERT INTO ch14_score_table VALUES ('2014', '중간고사', '독일어', 82);
+INSERT INTO ch14_score_table VALUES ('2014', '기말고사', '국어', 88);
+INSERT INTO ch14_score_table VALUES ('2014', '기말고사', '영어', 80);
+INSERT INTO ch14_score_table VALUES ('2014', '기말고사', '수학', 93);
+INSERT INTO ch14_score_table VALUES ('2014', '기말고사', '과학', 91);
+INSERT INTO ch14_score_table VALUES ('2014', '기말고사', '지리', 89);
+INSERT INTO ch14_score_table VALUES ('2014', '기말고사', '독일어', 83);
+COMMIT;
+
+SELECT * FROM ch14_score_table ;
+
+ -- 전통적인 DECODE 혹은 CASE
+SELECT years, gubun,
+	CASE WHEN subjects = '국어' THEN score ELSE 0 END "국어",
+	CASE WHEN subjects = '영어' THEN score ELSE 0 END "영어",
+	CASE WHEN subjects = '수학' THEN score ELSE 0 END "수학",
+	CASE WHEN subjects = '과학' THEN score ELSE 0 END "과학",
+	CASE WHEN subjects = '지리' THEN score ELSE 0 END "지리",
+	CASE WHEN subjects = '독일어' THEN score ELSE 0 END "독일어"
+FROM ch14_score_table
+;
+
+ -- 전통적인 DECODE 혹은 CASE 2
+SELECT years, gubun,
+	SUM(국어) AS 국어, SUM(영어) AS 영어, SUM(수학) AS 수학, 
+	SUM(과학) AS 과학, SUM(지리) AS 지리, SUM(독일어) AS 독일어
+FROM (
+	SELECT years, gubun,
+		CASE WHEN subjects = '국어' THEN score ELSE 0 END "국어",
+		CASE WHEN subjects = '영어' THEN score ELSE 0 END "영어",
+		CASE WHEN subjects = '수학' THEN score ELSE 0 END "수학",
+		CASE WHEN subjects = '과학' THEN score ELSE 0 END "과학",
+		CASE WHEN subjects = '지리' THEN score ELSE 0 END "지리",
+		CASE WHEN subjects = '독일어' THEN score ELSE 0 END "독일어"
+	FROM ch14_score_table
+)
+GROUP BY years, gubun
+;
+
+ -- WITH절 사용
+WITH mains AS (
+	SELECT years, gubun,
+		CASE WHEN subjects = '국어' THEN score ELSE 0 END "국어",
+		CASE WHEN subjects = '영어' THEN score ELSE 0 END "영어",
+		CASE WHEN subjects = '수학' THEN score ELSE 0 END "수학",
+		CASE WHEN subjects = '과학' THEN score ELSE 0 END "과학",
+		CASE WHEN subjects = '지리' THEN score ELSE 0 END "지리",
+		CASE WHEN subjects = '독일어' THEN score ELSE 0 END "독일어"
+	FROM ch14_score_table
+)
+SELECT years, gubun,
+	SUM(국어) AS 국어, SUM(영어) AS 영어, SUM(수학) AS 수학, 
+	SUM(과학) AS 과학, SUM(지리) AS 지리, SUM(독일어) AS 독일어
+FROM mains
+GROUP BY years, gubun
+;
+
+ -- PIVOT
+SELECT *
+FROM (
+	SELECT years, gubun, subjects, score
+	FROM ch14_score_table
+)
+pivot ( sum(score)
+	FOR subjects IN ('국어', '영어', '수학', '과학', '지리', '독일어')
+)
+;
