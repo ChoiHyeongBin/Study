@@ -4956,3 +4956,122 @@ pivot ( sum(score)
 	FOR subjects IN ('국어', '영어', '수학', '과학', '지리', '독일어')
 )
 ;
+
+
+ -- 230525
+CREATE TABLE ch14_score_col_table(
+	years varchar2(4),
+	gubun varchar2(30),
+	korean NUMBER,
+	english NUMBER,
+	math NUMBER,
+	science NUMBER,
+	geology NUMBER,
+	german NUMBER
+);
+
+INSERT INTO ch14_score_col_table 
+VALUES ('2014', '중간고사', 92, 87, 67, 80, 93, 82);
+
+INSERT INTO ch14_score_col_table 
+VALUES ('2014', '기말고사', 88, 80, 93, 91, 89, 83);
+
+SELECT * FROM ch14_score_col_table ;
+
+ -- 컬럼을 로우로 전환 - UNION ALL
+SELECT years, gubun, '국어' AS subject, korean AS score
+FROM ch14_score_col_table
+UNION ALL 
+SELECT years, gubun, '영어' AS subject, english AS score
+FROM ch14_score_col_table
+UNION ALL 
+SELECT years, gubun, '수학' AS subject, english AS score
+FROM ch14_score_col_table
+UNION ALL 
+SELECT years, gubun, '과학' AS subject, english AS score
+FROM ch14_score_col_table
+UNION ALL 
+SELECT years, gubun, '지리' AS subject, english AS score
+FROM ch14_score_col_table
+UNION ALL 
+SELECT years, gubun, '독일어' AS subject, english AS score
+FROM ch14_score_col_table
+ORDER BY 1, 2 DESC
+;
+
+ -- UNPIVOT
+SELECT *
+FROM ch14_score_col_table
+unpivot ( score
+		  FOR subjects IN (
+			  korean AS '국어',
+			  ENGLISH AS '영어',
+			  MATH AS '수학',
+			  SCIENCE AS '과학',
+			  GEOLOGY AS '지리',
+			  GERMAN AS '독일어'
+		  )
+)
+;
+
+ -- 파이프라인 테이블 함수용 OBJECT 타입
+CREATE OR REPLACE TYPE ch14_obj_subject AS OBJECT (
+	years varchar2(4),
+	gubun varchar2(30),
+	subjects varchar2(30),
+	score NUMBER 
+);
+
+ -- 컬렉션 타입
+CREATE OR REPLACE TYPE ch14_subject_nt IS TABLE OF ch14_obj_subject;
+
+CREATE OR REPLACE FUNCTION fn_ch14_pipe_table3
+	RETURN ch14_subject_nt
+	pipelined
+IS
+	vp_cur sys_refcursor;
+	v_cur ch14_score_col_table%rowtype;
+
+	vnt_return ch14_subject_nt := ch14_subject_nt();
+BEGIN 
+	OPEN vp_cur FOR SELECT * FROM ch14_score_col_table;
+
+	LOOP
+		FETCH vp_cur INTO v_cur;
+		EXIT WHEN vp_cur%notfound;
+	
+		vnt_return.extend();
+		vnt_return(vnt_return.last) := ch14_obj_subject(NULL, NULL, NULL, NULl);
+	
+		vnt_return(vnt_return.last).years := v_cur.YEARS;
+		vnt_return(vnt_return.last).gubun := v_cur.GUBUN;
+		vnt_return(vnt_return.last).subjects := '국어';
+		vnt_return(vnt_return.last).score := v_cur.KOREAN;
+		pipe ROW (vnt_return(vnt_return.last));
+
+		vnt_return(vnt_return.last).subjects := '영어';
+		vnt_return(vnt_return.last).score := v_cur.ENGLISH;
+		pipe ROW (vnt_return(vnt_return.last));
+	
+		vnt_return(vnt_return.last).subjects := '수학';
+		vnt_return(vnt_return.last).score := v_cur.ENGLISH;
+		pipe ROW (vnt_return(vnt_return.last));
+	
+		vnt_return(vnt_return.last).subjects := '과학';
+		vnt_return(vnt_return.last).score := v_cur.ENGLISH;
+		pipe ROW (vnt_return(vnt_return.last));
+	
+		vnt_return(vnt_return.last).subjects := '지리';
+		vnt_return(vnt_return.last).score := v_cur.ENGLISH;
+		pipe ROW (vnt_return(vnt_return.last));
+	
+		vnt_return(vnt_return.last).subjects := '독일어';
+		vnt_return(vnt_return.last).score := v_cur.ENGLISH;
+		pipe ROW (vnt_return(vnt_return.last));
+	END LOOP;
+	RETURN;
+END;
+
+SELECT *
+FROM TABLE(fn_ch14_pipe_table3)
+;
