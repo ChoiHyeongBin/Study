@@ -5075,3 +5075,61 @@ END;
 SELECT *
 FROM TABLE(fn_ch14_pipe_table3)
 ;
+
+ -- Self-Check 4
+SELECT * FROM KOR_LOAN_STATUS WHERE period LIKE '2013%';
+
+SELECT *
+FROM (
+	SELECT GUBUN, region, LOAN_JAN_AMT
+	FROM KOR_LOAN_STATUS WHERE period LIKE '2013%'
+)
+pivot ( SUM(LOAN_JAN_AMT) 
+	FOR region IN ('서울', '부산', '인천', '광주', '대전', '대구', '울산')
+)
+ORDER BY gubun DESC 
+;
+
+ -- DBMS_JOB의 서브 프로그램
+CREATE TABLE ch15_job_test(
+	seq NUMBER,
+	insert_date date
+);
+
+CREATE OR REPLACE PROCEDURE ch15_job_test_proc
+IS 
+	vn_next_seq NUMBER;
+BEGIN 
+	SELECT nvl(MAX(seq), 0) + 1
+	INTO vn_next_seq
+	FROM ch15_job_test;
+
+	INSERT INTO ch15_job_test VALUES (vn_next_seq, sysdate);
+
+	COMMIT;
+
+EXCEPTION WHEN OTHERS THEN 
+	ROLLBACK;
+	dbms_output.put_line(sqlerrm);
+END;
+
+ -- 잡 등록
+DECLARE 
+	v_job_no NUMBER;
+BEGIN 
+	dbms_job.submit(
+		job => v_job_no,
+		what => 'ch15_job_test_proc;',
+		next_date => sysdate,
+		INTERVAL => 'sysdate + 1/60/24'	-- 1분에 1번
+	);
+
+	COMMIT;
+
+	dbms_output.put_line('v_job_no: ' || v_job_no);
+END;
+
+SELECT seq, TO_CHAR(insert_date, 'YYYY-MM-DD HH24:MI:SS') 
+FROM ch15_job_test 
+ORDER BY seq asc
+;
