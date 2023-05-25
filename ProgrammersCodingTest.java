@@ -3,35 +3,28 @@ package codingTest;
 public class ProgrammersCodingTest {
 
     public static void main(String[] args) {
-    	int n = 10;
+    	int n = 5000;
     	
     	solution(n);
     }
 	
-    // LV1 소수 찾기
+    // LV2 점프와 순간 이동
     public static int solution(int n) {
-        int answer = 0;
-        
-        for (int i = 2; i <= n; i++) {
-        	System.out.println("i: " + i);
-        	boolean flag = true;
-        	
-        	for (int j = 2; j <= Math.sqrt(i); j++) {
-        		System.out.println("j: " + j);
-        		
-        		// 나누어 떨어지면 소수 X
-        		if (i % j == 0) {
-        			flag = false;
-        			break;
-        		}
+        int ans = 0;
+
+        while (n != 0) {
+        		System.out.println(n);
+        	if (n % 2 == 0) {	// 2
+        		n /= 2;
+        	} else {	// 2
+        		n -= 1;
+        		// n--;
+        		ans++;
         	}
-        	System.out.println();
-        	
-        	if (flag)	answer++;
         }
-        
-        System.out.println("answer: " + answer);
-        return answer;
+
+        System.out.println("ans: " + ans);
+        return ans;
     }
 
 }
