@@ -5260,3 +5260,84 @@ ORDER BY seq DESC
 BEGIN 
 	dbms_scheduler.enable('my_program1');
 END;
+
+BEGIN 
+--	dbms_scheduler.create_job(
+--		job_name => 'MY_EX_JOB1',
+--		job_type => 'EXECUTABLE',
+--		job_action => 'C:\Windows\System32\cmd.exe',
+--		number_of_arguments => 2,
+--		repeat_interval => 'FREQ=MINUTELY; INTERVAL=1',
+--		comments => '외부파일 실행 잡객체'
+--	);
+
+	dbms_scheduler.set_job_argument_value('MY_EX_JOB1', 1, '/c');
+
+	dbms_scheduler.set_job_argument_value('MY_EX_JOB1', 2, 'c:\scheduler_test.bat');
+	dbms_scheduler.enable('MY_EX_JOB1');
+END;
+
+ -- 체인
+ -- 1. 넣을 테이블 만들기
+CREATE TABLE ch15_changed_object (
+	OBJECT_name 	varchar2(128),	-- 객체명
+	object_type 	varchar2(50),	-- 객체 유형
+	created			DATE,			-- 객체 생성일자
+	last_ddl_time	DATE,			-- 객체 변경일자
+	status 			varchar2(7),	-- 객체 상태
+	creation_date 	DATE 			-- 생성일자
+);
+
+ -- 2. 일주일 간 수정된 객체 정보를 확인하는 프로시저
+CREATE OR REPLACE PROCEDURE ch15_check_objects_prc
+IS 
+	vn_cnt NUMBER := 0;
+BEGIN 
+	SELECT COUNT(*) 
+	INTO vn_cnt
+	FROM USER_OBJECTS a
+	WHERE LAST_DDL_TIME BETWEEN sysdate - 7 AND sysdate
+	AND NOT EXISTS (
+		SELECT 1
+		FROM ch15_changed_object b
+		WHERE a.OBJECT_NAME = b.OBJECT_NAME
+	);
+	
+	IF vn_cnt = 0 THEN 
+		raise_application_error(-20001, '변경된 객체 없음');		-- 사용자 에러코드 함수
+	END IF;
+END;
+
+ -- 3. 변경된 객체 정보를 저장하는 프로시저
+CREATE OR REPLACE PROCEDURE ch15_make_objects_prc
+IS 
+BEGIN 
+	INSERT INTO ch15_changed_object (
+		OBJECT_NAME,
+		OBJECT_TYPE,
+		CREATED,
+		LAST_DDL_TIME,
+		STATUS,
+		CREATION_DATE
+	)
+	SELECT  OBJECT_NAME,
+			OBJECT_TYPE,
+			CREATED,
+			LAST_DDL_TIME,
+			STATUS,
+			sysdate
+	FROM USER_OBJECTS a
+	WHERE LAST_DDL_TIME BETWEEN sysdate - 7 AND sysdate
+	AND NOT EXISTS (
+		SELECT 1
+		FROM ch15_changed_object b
+		WHERE a.OBJECT_NAME = b.OBJECT_NAME
+	);
+
+	COMMIT;
+
+EXCEPTION WHEN OTHERS THEN 
+	dbms_output.put_line(sqlerrm);
+	raise_application_error(-20002, sqlerrm);	-- 사용자 에러코드 함수
+	ROLLBACK;
+END;
