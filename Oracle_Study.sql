@@ -5197,3 +5197,66 @@ END;
 SELECT SCHEDULE_NAME, SCHEDULE_TYPE, START_DATE, REPEAT_INTERVAL, END_DATE, COMMENTS
 FROM USER_SCHEDULER_SCHEDULES 
 ;
+
+BEGIN 
+	dbms_scheduler.create_job(
+		job_name => 'my_job1',
+		job_type => 'STORED_PROCEDURE',
+		job_action => 'ch15_job_test_proc',
+		repeat_interval => 'FREQ=MINUTELY; INTERVAL=1',	-- 1분에 1번
+		comments => '버전1 잡객체'
+	);
+END;
+
+SELECT JOB_NAME, JOB_STYLE, JOB_TYPE, JOB_ACTION, REPEAT_INTERVAL, ENABLED, AUTO_DROP, STATE, COMMENTS
+FROM USER_SCHEDULER_JOBS 
+;
+
+--TRUNCATE TABLE ch15_job_test ;
+
+BEGIN 
+	dbms_scheduler.enable('my_job1');
+END;
+
+SELECT seq, TO_CHAR(insert_date, 'YYYY-MM-DD HH24:MI:SS') 
+FROM ch15_job_test 
+ORDER BY seq DESC 
+;
+
+SELECT LOG_ID, LOG_DATE, JOB_NAME, OPERATION, STATUS
+FROM USER_SCHEDULER_JOB_LOG 
+;
+
+SELECT LOG_DATE, JOB_NAME, STATUS, ERROR#, REQ_START_DATE, ACTUAL_START_DATE, RUN_DURATION
+FROM user_scheduler_job_run_details ;
+
+BEGIN 
+	dbms_scheduler.disable('my_job2');
+END;
+
+BEGIN 
+	dbms_scheduler.create_job(
+		job_name => 'my_job2',
+		program_name => 'my_program1',
+		schedule_name => 'my_schedule1',
+		comments => '버전2 잡객체'
+	);
+END;
+
+SELECT JOB_NAME, JOB_STYLE, JOB_TYPE, JOB_ACTION, SCHEDULE_NAME, SCHEDULE_TYPE, REPEAT_INTERVAL, ENABLED, 
+		AUTO_DROP, STATE, COMMENTS
+FROM USER_SCHEDULER_JOBS 
+;
+
+BEGIN 
+	dbms_scheduler.enable('my_job2');
+END;
+
+SELECT seq, TO_CHAR(insert_date, 'YYYY-MM-DD HH24:MI:SS') 
+FROM ch15_job_test 
+ORDER BY seq DESC 
+;
+
+BEGIN 
+	dbms_scheduler.enable('my_program1');
+END;
