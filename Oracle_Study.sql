@@ -5131,5 +5131,69 @@ END;
 
 SELECT seq, TO_CHAR(insert_date, 'YYYY-MM-DD HH24:MI:SS') 
 FROM ch15_job_test 
-ORDER BY seq asc
+ORDER BY seq DESC 
+;
+
+
+ -- 230526
+ -- 오라클에 등록된 잡의 각종 정보를 담고 있는 뷰
+SELECT job, last_date, last_sec, next_date, next_sec, broken ,INTERVAL , failures, what
+FROM user_jobs ;
+
+BEGIN 
+	dbms_job.broken(23, true);
+
+	COMMIT;
+END;
+
+--TRUNCATE TABLE ch15_job_test;
+
+ -- 잡의 속성 변경
+BEGIN 
+	dbms_job.change(
+		job => 24,
+		what => 'ch15_job_test_proc;',
+		next_date => sysdate,
+		INTERVAL => 'sysdate + 3/60/24'	-- 3분
+	);
+
+	COMMIT;
+END;
+
+BEGIN
+	dbms_job.run(23);
+	COMMIT;
+END;
+
+BEGIN 
+	dbms_job.remove(24);
+	COMMIT;
+END;
+
+ -- 프로그램 객체 생성
+BEGIN 
+	dbms_scheduler.create_program(
+		program_name => 'my_program1',
+		program_type => 'STORED_PROCEDURE',
+		program_action => 'ch15_job_test_proc',
+		comments => '첫번째 프로그램'
+	);
+END;
+
+SELECT PROGRAM_NAME, PROGRAM_TYPE, PROGRAM_ACTION, NUMBER_OF_ARGUMENTS, ENABLED, COMMENTS
+FROM USER_SCHEDULER_PROGRAMS 
+;
+
+BEGIN 
+	dbms_scheduler.create_schedule(
+		schedule_name => 'my_schedule1',
+		start_date => NULL,
+		repeat_interval => 'FREQ=MINUTELY; INTERVAL=1',	-- 1분에 1번
+		end_date => NULL,
+		comments => '1분마다 수행'
+	);
+END;
+
+SELECT SCHEDULE_NAME, SCHEDULE_TYPE, START_DATE, REPEAT_INTERVAL, END_DATE, COMMENTS
+FROM USER_SCHEDULER_SCHEDULES 
 ;
