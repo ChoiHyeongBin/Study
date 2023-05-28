@@ -5341,3 +5341,209 @@ EXCEPTION WHEN OTHERS THEN
 	raise_application_error(-20002, sqlerrm);	-- 사용자 에러코드 함수
 	ROLLBACK;
 END;
+
+
+ -- 230528
+ -- 4. 프로그램 객체 만들기
+BEGIN 
+	dbms_scheduler.create_program(
+		program_name => 'MY_CHAIN_PROG1',
+		program_type => 'STORED_PROCEDURE',
+		program_action => 'ch15_check_objects_prc',
+		comments => '첫번째 체인 프로그램'
+	);
+
+	dbms_scheduler.create_program(
+		program_name => 'MY_CHAIN_PROG2',
+		program_type => 'STORED_PROCEDURE',
+		program_action => 'ch15_make_objects_prc',
+		comments => '두번째 체인 프로그램'
+	);
+
+	dbms_scheduler.enable('MY_CHAIN_PROG1');
+	dbms_scheduler.enable('MY_CHAIN_PROG2');
+END;
+
+ -- 5. 체인 생성
+BEGIN 
+	dbms_scheduler.create_chain(
+		chain_name => 'MY_CHAIN1',
+		rule_set_name => NULL,
+		evaluation_interval => NULL,
+		comments => '첫 번째 체인'
+	);
+END;
+
+ -- 6. 스텝 생성
+BEGIN 
+	 -- STEP1
+	dbms_scheduler.define_chain_step(
+		chain_name => 'MY_CHAIN1',
+		step_name => 'STEP1',
+		program_name => 'MY_CHAIN_PROG1'
+	);
+
+	 -- STEP2
+	dbms_scheduler.define_chain_step(
+		chain_name => 'MY_CHAIN1',
+		step_name => 'STEP2',
+		program_name => 'MY_CHAIN_PROG2'
+	);
+END;
+
+ -- 7. 룰 생성
+BEGIN 
+	 -- 최초 STEP1을 시작시키는 룰
+	dbms_scheduler.define_chain_rule(
+		chain_name => 'MY_CHAIN1',
+		CONDITION => 'TRUE',
+		ACTION => 'START STEP1',
+		rule_name => 'MY_RULE1',
+		comments => 'START 룰'
+	);
+END;
+
+BEGIN 
+	 -- 2번째 룰
+	dbms_scheduler.define_chain_rule(
+		chain_name => 'MY_CHAIN1',
+		CONDITION => 'STEP1 ERROR_CODE = 20001',
+		ACTION => 'END',
+		rule_name => 'MY_RULE2',
+		comments => '룰2'
+	);
+END;
+
+BEGIN 
+	 -- STEP1에서 STEP2로 가는 룰
+	dbms_scheduler.define_chain_rule(
+		chain_name => 'MY_CHAIN1',
+		CONDITION => 'STEP1 SUCCEEDED',
+		ACTION => 'START STEP2',
+		rule_name => 'MY_RULE3',
+		comments => '룰3'
+	);
+
+	 -- STEP2를 마치고 종료하는 룰
+	dbms_scheduler.define_chain_rule(
+		chain_name => 'MY_CHAIN1',
+		CONDITION => 'STEP2 SUCCEEDED',
+		ACTION => 'END',
+		rule_name => 'MY_RULE4',
+		comments => '룰4'
+	);
+END;
+
+ -- 8. 잡 생성
+BEGIN 
+	dbms_scheduler.create_job(
+		job_name => 'MY_CHAIN_JOBS',
+		job_type => 'CHAIN',
+		job_action => 'MY_CHAIN1',
+		repeat_interval => 'FREQ=MINUTELY; INTERVAL=1',
+		comments => '체인을 실행하는 잡'
+	);
+END;
+
+SELECT *
+FROM USER_SCHEDULER_CHAINS ;
+
+SELECT CHAIN_NAME, STEP_NAME, PROGRAM_NAME, STEP_TYPE, SKIP, PAUSE
+FROM USER_SCHEDULER_CHAIN_STEPS ;
+
+SELECT *
+FROM USER_SCHEDULER_CHAIN_RULES ;
+
+BEGIN 
+	dbms_scheduler.enable('MY_CHAIN1');
+
+	dbms_scheduler.enable('MY_CHAIN_JOBS');
+END;
+
+SELECT LOG_DATE, JOB_SUBNAME, OPERATION, STATUS, ADDITIONAL_INFO
+FROM USER_SCHEDULER_JOB_LOG
+WHERE job_name = 'MY_CHAIN_JOBS'
+;
+
+SELECT LOG_DATE, JOB_SUBNAME, STATUS, ACTUAL_START_DATE, RUN_DURATION, ADDITIONAL_INFO
+FROM USER_SCHEDULER_JOB_RUN_DETAILS 
+WHERE job_name = 'MY_CHAIN_JOBS'
+;
+
+SELECT * FROM ch15_changed_object ;
+
+BEGIN 
+	dbms_stats.gather_table_stats(ownname => 'ora_user', tabname => 'ch15_changed_object');
+END;
+
+SELECT table_name, NUM_ROWS, BLOCKS, EMPTY_BLOCKS, AVG_ROW_LEN FROM USER_TAB_STATISTICS
+WHERE TABLE_NAME = 'CH15_CHANGED_OBJECT';
+
+SELECT * FROM user_tables ;
+
+ -- Self-Check 1
+CREATE OR REPLACE PROCEDURE ch15_example1_prc
+IS 
+	vp_cur sys_refcursor;
+	v_cur user_tables%rowtype;
+BEGIN 
+	OPEN vp_cur FOR SELECT * FROM user_tables ;
+
+	LOOP
+		FETCH vp_cur INTO v_cur;
+		EXIT WHEN vp_cur%notfound;
+	
+		dbms_output.put_line('테이블명: ' || v_cur.TABLE_NAME);
+	
+		dbms_stats.gather_table_stats(ownname => 'ora_user', tabname => v_cur.TABLE_NAME);	-- 통계정보 생성 프로시저
+	END LOOP;
+
+	dbms_output.put_line('통계정보 생성완료.');
+
+EXCEPTION WHEN OTHERS THEN 
+	dbms_output.put_line('에러 발생 !! 내용: ' || sqlerrm);
+	ROLLBACK;
+END;
+
+BEGIN 
+	ch15_example1_prc();
+END;
+
+ -- Self-Check 2
+DECLARE 
+	v_job_no NUMBER;
+BEGIN 
+	dbms_job.submit(
+		job => v_job_no,
+		what => 'ch15_example1_prc;',
+		next_date => sysdate,
+		INTERVAL => 'TRUNC(SYSDATE) + 1 + 17/24'
+	);
+
+	COMMIT;
+
+	dbms_output.put_line('v_job_no: ' || v_job_no);
+END;
+
+SELECT job, last_date, last_sec, next_date, next_sec, broken ,INTERVAL , failures, what
+FROM user_jobs ;
+
+ -- Self-Check 3
+BEGIN 
+	dbms_scheduler.create_job(
+		job_name => 'stats_prc_job1',
+		job_type => 'STORED_PROCEDURE',
+		job_action => 'ch15_example1_prc',
+		repeat_interval => 'FREQ=DAILY; BYHOUR=17',
+		comments => '통계정보 생성 버전1 잡객체'
+	);
+END;
+
+SELECT /*JOB_NAME, JOB_STYLE, JOB_TYPE, JOB_ACTION, SCHEDULE_NAME, SCHEDULE_TYPE, REPEAT_INTERVAL, ENABLED, 
+		AUTO_DROP, STATE, COMMENTS*/*
+FROM USER_SCHEDULER_JOBS 
+;
+
+BEGIN 
+	dbms_scheduler.enable('stats_prc_job1');
+END;
