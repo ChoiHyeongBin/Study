@@ -5539,11 +5539,313 @@ BEGIN
 	);
 END;
 
-SELECT /*JOB_NAME, JOB_STYLE, JOB_TYPE, JOB_ACTION, SCHEDULE_NAME, SCHEDULE_TYPE, REPEAT_INTERVAL, ENABLED, 
-		AUTO_DROP, STATE, COMMENTS*/*
+SELECT JOB_NAME, JOB_STYLE, JOB_TYPE, JOB_ACTION, SCHEDULE_NAME, SCHEDULE_TYPE, REPEAT_INTERVAL, ENABLED, 
+		AUTO_DROP, STATE, COMMENTS
 FROM USER_SCHEDULER_JOBS 
 ;
 
 BEGIN 
 	dbms_scheduler.enable('stats_prc_job1');
 END;
+
+
+ -- 230529
+BEGIN 
+	dbms_scheduler.disable('stats_prc_job1');
+END;
+
+ -- Self-Check 4
+BEGIN 
+	dbms_scheduler.create_program(
+		program_name => 'stats_prc_program1',
+		program_type => 'STORED_PROCEDURE',
+		program_action => 'ch15_example1_prc',
+		comments => '통계정보 첫번째 프로그램'
+	);
+END;
+
+SELECT PROGRAM_NAME, PROGRAM_TYPE, PROGRAM_ACTION, NUMBER_OF_ARGUMENTS, ENABLED, COMMENTS
+FROM USER_SCHEDULER_PROGRAMS 
+;
+
+BEGIN 
+	dbms_scheduler.create_schedule(
+		schedule_name => 'stats_prc_schedule1',
+		start_date => NULL,
+		repeat_interval => 'FREQ=DAILY; BYHOUR=17',
+		end_date => NULL,
+		comments => '매일 오후 5시 수행'
+	);
+END;
+
+SELECT SCHEDULE_NAME, SCHEDULE_TYPE, START_DATE, REPEAT_INTERVAL, END_DATE, COMMENTS
+FROM USER_SCHEDULER_SCHEDULES 
+;
+
+BEGIN 
+	dbms_scheduler.create_job(
+		job_name => 'stats_prc_job2',
+		program_name => 'stats_prc_program1',
+		schedule_name => 'stats_prc_schedule1',
+		comments => '통계정보 생성 버전2 잡객체'
+	);
+END;
+
+SELECT /*JOB_NAME, program_name, JOB_TYPE, JOB_ACTION, SCHEDULE_NAME, SCHEDULE_TYPE, REPEAT_INTERVAL, ENABLED, 
+		AUTO_DROP, STATE, COMMENTS*/*
+FROM USER_SCHEDULER_JOBS 
+;
+
+BEGIN 
+	dbms_scheduler.enable('stats_prc_program1');
+END;
+
+SELECT LOG_DATE, JOB_SUBNAME, STATUS, ACTUAL_START_DATE, RUN_DURATION, ADDITIONAL_INFO
+FROM USER_SCHEDULER_JOB_RUN_DETAILS 
+WHERE job_name = 'stats_prc_job2'
+;
+
+ -- 일괄처리를 위한, 사원 테이블과 유사한 형태의 대상 테이블
+CREATE TABLE emp_bulk (	
+	bulk_id		NUMBER	NOT NULL,
+	"EMPLOYEE_ID" NUMBER(6,0) NOT NULL, 
+	"EMP_NAME" VARCHAR2(80) NOT NULL, 
+	"EMAIL" VARCHAR2(50), 
+	"PHONE_NUMBER" VARCHAR2(30), 
+	"HIRE_DATE" DATE NOT NULL, 
+	"SALARY" NUMBER(8,2), 
+	"MANAGER_ID" NUMBER(6,0), 
+	"COMMISSION_PCT" NUMBER(2,2), 
+	"RETIRE_DATE" DATE, 
+	"DEPARTMENT_ID" NUMBER(6,0), 
+	"JOB_ID" VARCHAR2(10), 
+	dep_name varchar2(100),
+	job_title varchar2(80)
+);
+
+SELECT * FROM emp_bulk ;
+SELECT COUNT(*)  FROM EMPLOYEES ;
+
+BEGIN 
+	FOR i IN 1..10000
+	LOOP
+		INSERT INTO emp_bulk (
+			BULK_ID,
+			EMPLOYEE_ID,
+			EMP_NAME,
+			EMAIL,
+			PHONE_NUMBER,
+			HIRE_DATE,
+			SALARY,
+			MANAGER_ID,
+			COMMISSION_PCT,
+			RETIRE_DATE,
+			DEPARTMENT_ID,
+			JOB_ID
+		)
+		SELECT i,
+			EMPLOYEE_ID,
+			EMP_NAME,
+			EMAIL,
+			PHONE_NUMBER,
+			HIRE_DATE,
+			SALARY,
+			MANAGER_ID,
+			COMMISSION_PCT,
+			RETIRE_DATE,
+			DEPARTMENT_ID,
+			JOB_ID
+			FROM EMPLOYEES;
+	END LOOP;
+
+	COMMIT;
+END;
+
+SELECT * FROM emp_bulk ;
+
+ -- emp_bulk 테이블을 조회하는 커서와 반복문을 이용한 익명 블록
+DECLARE 
+	 -- 커서 선언
+	CURSOR c1 IS 
+	SELECT employee_id
+	FROM EMP_BULK ;
+
+	vn_cnt NUMBER := 0;
+	vn_emp_id NUMBER;
+	vd_sysdate DATE;
+	vn_total_time NUMBER := 0;
+BEGIN 
+	vd_sysdate := sysdate;
+
+	OPEN c1;
+
+	LOOP
+		FETCH c1 INTO vn_emp_id;
+		EXIT WHEN c1%notfound;
+	
+		vn_cnt := vn_cnt + 1;
+	END LOOP;
+
+	CLOSE c1;
+
+	vn_total_time := (sysdate - vd_sysdate) * 60 * 60 * 24;
+
+	dbms_output.put_line('전체건수: ' || vn_cnt);
+	dbms_output.put_line('소요 시간: ' || vn_total_time || '초');
+END;
+
+ -- BULK COLLECT 사용
+DECLARE 
+	 -- 커서 선언
+	CURSOR c1 IS 
+	SELECT employee_id
+	FROM EMP_BULK ;
+
+	 -- 컬렉션 타입 선언
+	TYPE bkEmpTP IS TABLE OF emp_bulk.employee_id%TYPE;
+	vnt_bkEmpTp bkEmpTP;
+
+	vd_sysdate DATE;
+	vn_total_time NUMBER := 0;
+BEGIN 
+	vd_sysdate := sysdate;
+
+	OPEN c1;
+
+	FETCH c1 BULK COLLECT INTO vnt_bkEmpTp;
+
+	CLOSE c1;
+
+	vn_total_time := (sysdate - vd_sysdate) * 60 * 60 * 24;
+
+	dbms_output.put_line('전체건수: ' || vnt_bkEmpTp.count);
+	dbms_output.put_line('소요 시간: ' || vn_total_time || '초');
+END;
+
+SELECT * FROM emp_bulk ;
+
+ -- 인덱스 생성
+CREATE INDEX emp_bulk_idx01 ON emp_bulk( BULK_ID );	-- BULK_ID 뒤에 ASC 생략
+
+ -- 통계 정보 생성
+BEGIN 
+	dbms_stats.gather_table_stats('ORA_USER', 'EMP_BULK');
+END;
+
+ -- 커서와 FOR문을 활용해 데이터 갱신
+DECLARE 
+	 -- 커서 선언
+	CURSOR c1 IS 
+	SELECT DISTINCT bulk_id
+	FROM EMP_BULK ;
+
+	 -- 컬렉션 타입 선언
+	TYPE BulkIDTP IS TABLE OF emp_bulk.bulk_id%TYPE;
+	vnt_BulkID BulkIDTP;
+
+	vd_sysdate DATE;
+	vn_total_time NUMBER := 0;
+BEGIN 
+	vd_sysdate := sysdate;
+
+	OPEN c1;
+
+	FETCH c1 BULK COLLECT INTO vnt_BulkID;
+
+	FOR i IN 1..vnt_BulkID.count
+	LOOP
+		UPDATE EMP_BULK
+		SET retire_date = hire_date
+		WHERE bulk_id = vnt_BulkID(i);
+	END LOOP;
+	COMMIT;
+	CLOSE c1;
+
+	vn_total_time := (sysdate - vd_sysdate) * 60 * 60 * 24;
+
+	dbms_output.put_line('전체건수: ' || vnt_BulkID.count);
+	dbms_output.put_line('소요 시간: ' || vn_total_time || '초');
+END;
+
+ -- FORALL문 사용
+DECLARE 
+	 -- 커서 선언
+	CURSOR c1 IS 
+	SELECT DISTINCT bulk_id
+	FROM EMP_BULK ;
+
+	 -- 컬렉션 타입 선언
+	TYPE BulkIDTP IS TABLE OF emp_bulk.bulk_id%TYPE;
+	vnt_BulkID BulkIDTP;
+
+	vd_sysdate DATE;
+	vn_total_time NUMBER := 0;
+BEGIN 
+	vd_sysdate := sysdate;
+
+	OPEN c1;
+
+	FETCH c1 BULK COLLECT INTO vnt_BulkID;
+
+	FORALL i IN 1..vnt_BulkID.count
+		UPDATE EMP_BULK
+		SET retire_date = hire_date
+		WHERE bulk_id = vnt_BulkID(i);
+	
+	COMMIT;
+
+	CLOSE c1;
+
+	vn_total_time := (sysdate - vd_sysdate) * 60 * 60 * 24;
+
+	dbms_output.put_line('전체건수: ' || vnt_BulkID.count);
+	dbms_output.put_line('FORALL 소요 시간: ' || vn_total_time || '초');
+END;
+
+ -- 부서코드를 받아 부서명을 반환하는 함수
+CREATE OR REPLACE FUNCTION fn_get_depname_normal( pv_dept_id varchar2 )
+	RETURN varchar2
+IS 
+	vs_dep_name departments.DEPARTMENT_NAME%TYPE;
+BEGIN 
+	SELECT department_name
+	INTO vs_dep_name
+	FROM DEPARTMENTS 
+	WHERE department_id = pv_dept_id;
+
+	RETURN vs_dep_name;
+
+EXCEPTION WHEN OTHERS THEN 
+	RETURN '';
+END;
+
+SELECT * FROM EMP_BULK ;
+
+ -- EMP_BULK 테이블의 dep_name 컬럼 값 갱신
+DECLARE 
+	vn_cnt NUMBER := 0;
+	vd_sysdate DATE;
+	vn_total_time NUMBER := 0;
+BEGIN 
+	vd_sysdate := sysdate;
+
+	UPDATE EMP_BULK
+	SET dep_name = fn_get_depname_normal(department_id)
+	WHERE bulk_id BETWEEN 1 AND 1000;
+	
+	vn_cnt := SQL%rowcount;
+
+	COMMIT;
+
+	vn_total_time := (sysdate - vd_sysdate) * 60 * 60 * 24;
+
+	dbms_output.put_line(' UPDATE 건수: ' || vn_cnt);
+	dbms_output.put_line('소요 시간: ' || vn_total_time || '초');
+END;
+
+SELECT department_id, dep_name, COUNT(*) 
+FROM EMP_BULK 
+WHERE bulk_id BETWEEN 1 AND 1000
+GROUP BY department_id, dep_name
+ORDER BY department_id, dep_name
+;
