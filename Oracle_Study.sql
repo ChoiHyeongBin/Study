@@ -5849,3 +5849,174 @@ WHERE bulk_id BETWEEN 1 AND 1000
 GROUP BY department_id, dep_name
 ORDER BY department_id, dep_name
 ;
+
+
+ -- 230601
+ -- RESULT CACHE 기능이 탑재된 함수
+CREATE OR REPLACE FUNCTION fn_get_depname_rsltcache(pv_dept_id varchar2)
+	RETURN varchar2
+	result_cache
+	relies_on (departments)
+IS
+	vs_dep_name departments.DEPARTMENT_NAME%TYPE;
+BEGIN 
+	SELECT department_name
+	INTO vs_dep_name
+	FROM DEPARTMENTS
+	WHERE department_id = pv_dept_id;
+
+	RETURN vs_dep_name;
+
+EXCEPTION WHEN OTHERS THEN 
+	RETURN '';
+END;
+
+SELECT DISTINCT department_id FROM EMP_BULK ;
+
+DECLARE 
+	vn_cnt NUMBER := 0;
+	vd_sysdate DATE;
+	vn_total_time NUMBER := 0;
+BEGIN 
+	vd_sysdate := sysdate;
+
+	UPDATE EMP_BULK
+	SET dep_name = fn_get_depname_rsltcache(department_id)
+	WHERE bulk_id BETWEEN 1 AND 1000;
+	
+	vn_cnt := SQL%rowcount;
+
+	COMMIT;
+
+	vn_total_time := (sysdate - vd_sysdate) * 60 * 60 * 24;
+
+	dbms_output.put_line('전체건수: ' || vn_cnt);
+	dbms_output.put_line('소요 시간: ' || vn_total_time || '초');
+END;
+
+SELECT *
+FROM "V$RESULT_CACHE_STATISTICS" 
+;
+
+ -- ALTER SESSION으로 병렬 쿼리 처리
+DECLARE 
+	vn_cnt NUMBER := 0;
+	vd_sysdate DATE;
+	vn_total_time NUMBER := 0;
+
+	vs_emp_name employees.emp_name%TYPE;
+	
+	TYPE emp_dep_curtype IS REF CURSOR;
+	emp_dep_curvar emp_dep_curtype;
+BEGIN 
+	EXECUTE IMMEDIATE 'ALTER SESSION FORCE PARALLEL QUERY PARALLEL 4';
+	
+	vd_sysdate := sysdate;
+
+	OPEN emp_dep_curvar FOR SELECT EMP_NAME 
+							FROM EMPLOYEES 
+							WHERE DEPARTMENT_ID = 90;
+							
+	LOOP 
+		FETCH emp_dep_curvar INTO vs_emp_name;
+	
+		EXIT WHEN emp_dep_curvar%notfound;
+	
+--		dbms_output.put_line(vs_emp_name);
+	END LOOP;
+	
+	vn_cnt := SQL%rowcount;
+
+	COMMIT;
+
+	vn_total_time := (sysdate - vd_sysdate) * 60 * 60 * 24;
+
+	dbms_output.put_line('전체건수: ' || vn_cnt);
+	dbms_output.put_line('소요 시간: ' || vn_total_time || '초');
+END;
+
+ -- 병렬 DML
+DECLARE 
+
+BEGIN 
+	EXECUTE IMMEDIATE 'alter session force parallel dml parallel 4';
+	
+	INSERT INTO ch14_score_col_table 
+	VALUES ('2015', '중간고사', 92, 87, 67, 80, 93, 82);
+	COMMIT;
+
+	UPDATE ch14_score_col_table
+	SET KOREAN = 40
+	WHERE GUBUN = '기말고사';
+	COMMIT;
+
+	EXECUTE IMMEDIATE 'alter session disable parallel dml';
+END;
+
+SELECT * FROM ch14_score_col_table;
+
+SELECT * FROM jobs ;
+
+ -- Self-Check 2
+CREATE OR REPLACE FUNCTION fn_get_jobtitle_rsltcache(pv_job_id varchar2)
+	RETURN varchar2
+	result_cache
+	relies_on (JOBS)
+IS 
+	vs_job_title jobs.JOB_TITLE%TYPE;
+BEGIN 
+	SELECT JOB_TITLE
+	INTO vs_job_title
+	FROM JOBS 
+	WHERE job_id = pv_job_id;
+
+	RETURN vs_job_title;
+
+EXCEPTION WHEN OTHERS THEN 
+	RETURN '';
+END;
+
+SELECT fn_get_jobtitle_rsltcache('AD_PRES') FROM dual ;
+
+DECLARE 
+
+BEGIN 
+	dbms_output.put_line(fn_get_jobtitle_rsltcache('AD_PRES'));
+END;
+
+ -- Self-Check 3
+SELECT * FROM EMP_BULK WHERE BULK_id BETWEEN 1001 AND 1000000 ORDER BY bulk_id ASC ;
+
+DECLARE 
+	vn_cnt NUMBER := 0;
+	vd_sysdate DATE;
+	vn_total_time NUMBER := 0;
+BEGIN 
+	vd_sysdate := sysdate;
+
+	UPDATE EMP_BULK
+	SET JOB_TITLE = fn_get_jobtitle_rsltcache(JOB_ID);
+--	WHERE bulk_id BETWEEN 1 AND 1000;
+	
+	vn_cnt := SQL%rowcount;
+
+	COMMIT;
+
+	vn_total_time := (sysdate - vd_sysdate) * 60 * 60 * 24;
+
+	dbms_output.put_line('전체건수: ' || vn_cnt);
+	dbms_output.put_line('소요 시간: ' || vn_total_time || '초');
+END;
+
+ -- 데이터 딕셔너리 뷰
+SELECT table_name, num_rows, last_analyzed FROM user_tables WHERE num_rows = 0 AND table_name = 'EX7_5' ;
+
+BEGIN 
+	dbms_stats.gather_table_stats(ownname => 'ora_user', tabname => 'EX7_5');
+END;
+
+SELECT * FROM user_objects ;
+SELECT * FROM user_procedures ;
+SELECT * FROM user_arguments ;
+SELECT * FROM USER_DEPENDENCIES WHERE referenced_name = 'ch10_ins_emp_proc' ;
+SELECT * FROM user_source ;
