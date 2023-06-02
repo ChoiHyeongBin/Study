@@ -6020,3 +6020,176 @@ SELECT * FROM user_procedures ;
 SELECT * FROM user_arguments ;
 SELECT * FROM USER_DEPENDENCIES WHERE referenced_name = 'ch10_ins_emp_proc' ;
 SELECT * FROM user_source ;
+
+
+ -- 230602
+CREATE OR REPLACE PACKAGE ch17_src_test_pkg IS 
+
+	pv_name varchar2(30) := 'CH17_SRC_TEST_PKG';
+
+END ch17_src_test_pkg;
+
+SELECT * 
+FROM user_source 
+WHERE name = 'CH17_SRC_TEST_PKG'
+ORDER BY line ASC 
+;
+
+CREATE OR REPLACE PACKAGE BODY ch17_src_test_pkg IS 
+
+	pvv_temp varchar2(30) := 'TEST';
+
+END ch17_src_test_pkg;
+
+SELECT * 
+FROM user_source 
+WHERE name = 'CH17_SRC_TEST_PKG'
+ORDER BY TYPE , line ASC 
+;
+
+ -- 사원 테이블을 사용하는 모든 프로그램과 해당 소스
+SELECT *
+FROM user_source
+WHERE text LIKE '%EMPLOYEES%'
+OR text LIKE '%employees%'
+ORDER BY name, TYPE, line
+;
+
+SELECT *
+FROM user_source
+WHERE UPPER(text) LIKE '%EMPLOYEES%'
+ORDER BY name, TYPE, line
+;
+
+ -- 소스 백업하기
+CREATE TABLE bk_source_20230602 AS 
+	SELECT *
+	FROM user_source
+	ORDER BY name, TYPE, line ASC 
+;
+
+SELECT * FROM bk_source_20230602 ;
+
+ -- 디버깅 대상 프로그램 만들기
+CREATE TABLE ch17_sales_detail (
+	channel_name varchar2(50),
+	prod_name varchar2(300),
+	cust_name varchar2(100),
+	emp_name varchar2(100),
+	sales_date DATE,
+	sales_month varchar2(6),
+	sales_qty NUMBER DEFAULT 0,
+	sales_amt NUMBER DEFAULT 0
+);
+
+CREATE INDEX idx_ch17_sales_dtl ON ch17_sales_detail (sales_month);
+
+CREATE OR REPLACE PACKAGE ch17_src_test_pkg IS 
+
+	pv_name varchar2(30) := 'CH17_SRC_TEST_PKG';
+
+	PROCEDURE sales_detail_prc(
+		ps_month IN varchar2,
+		pn_amt IN NUMBER,
+		pn_rate IN number
+	);
+
+END ch17_src_test_pkg;
+
+CREATE OR REPLACE PACKAGE BODY ch17_src_test_pkg IS 
+
+	PROCEDURE sales_detail_prc(
+		ps_month IN varchar2,	-- 월
+		pn_amt IN NUMBER,		-- 금액
+		pn_rate IN NUMBER		-- 할인률
+	)
+	IS 
+	BEGIN 
+		 -- 1. ps_month에 해당하는 월의 ch17_sales_detail 데이터 삭제
+		DELETE ch17_sales_detail
+		WHERE sales_month = ps_month;
+	
+		 -- 2. ps_month에 해당하는 월의 ch17_sales_detail 데이터 생성
+		INSERT INTO ch17_sales_detail
+		SELECT b.prod_name,
+			   d.channel_desc,
+			   c.cust_name,
+			   e.emp_name,
+			   a.sales_date,
+			   a.sales_month,
+			   SUM(a.quantity_sold) ,
+			   SUM(a.amount_sold) 
+		FROM SALES a,
+			 PRODUCTS b,
+			 CUSTOMERS c,
+			 CHANNELS d,
+			 EMPLOYEES e
+		WHERE a.sales_month = ps_month
+		AND   a.prod_id = b.prod_id
+		AND   a.cust_id = c.cust_id
+		AND   a.channel_id = d.channel_id
+		AND   a.employee_id = e.employee_id
+		GROUP BY b.prod_name,
+			   	 d.channel_desc,
+			     c.cust_name,
+			     e.emp_name,
+			     a.sales_date,
+			     a.sales_month;
+			    
+		 -- 3. 판매금액(sales_amt)이 pn_amt보다 큰 건은 pn_rate 비율만큼 할인
+		UPDATE ch17_sales_detail
+		SET sales_amt = sales_amt - (sales_amt * pn_rate * 0.01)
+		WHERE sales_month = ps_month
+		AND sales_amt > pn_amt;
+	
+		COMMIT;
+	
+	EXCEPTION WHEN OTHERS THEN 
+		dbms_output.put_line(sqlerrm);
+		ROLLBACK;
+	
+	END sales_detail_prc;
+
+END ch17_src_test_pkg;
+
+BEGIN 
+	ch17_src_test_pkg.sales_detail_prc(
+		ps_month => '200112',
+		pn_amt => 10000,
+		pn_rate => 1
+	);
+END;
+
+SELECT 
+	DATA.*
+FROM (
+	SELECT b.prod_name,
+		   d.channel_desc,
+		   c.cust_name,
+		   e.emp_name,
+		   a.sales_date,
+		   a.sales_month,
+		   SUM(a.quantity_sold) ,
+		   SUM(a.amount_sold) AMOUNT_SOLD 
+	FROM SALES a,
+		 PRODUCTS b,
+		 CUSTOMERS c,
+		 CHANNELS d,
+		 EMPLOYEES e
+	WHERE a.sales_month = '200112'
+	AND   a.prod_id = b.prod_id
+	AND   a.cust_id = c.cust_id
+	AND   a.channel_id = d.channel_id
+	AND   a.employee_id = e.employee_id
+	GROUP BY b.prod_name,
+		   	 d.channel_desc,
+		     c.cust_name,
+		     e.emp_name,
+		     a.sales_date,
+		     a.sales_month
+) DATA 
+WHERE 
+	DATA.AMOUNT_SOLD > 10000
+;
+
+SELECT * FROM ch17_sales_detail ;
