@@ -6104,12 +6104,27 @@ CREATE OR REPLACE PACKAGE BODY ch17_src_test_pkg IS
 		pn_rate IN NUMBER		-- 할인률
 	)
 	IS 
+		vd_sysdate DATE;
+		vn_total_time NUMBER := 0;
 	BEGIN 
+		dbms_output.put_line('-----------------------<변수값 출력>-----------------------');
+		dbms_output.put_line('ps_month: ' || ps_month);
+		dbms_output.put_line('pn_amt: ' || pn_amt);
+		dbms_output.put_line('pn_rate: ' || pn_rate);
+		dbms_output.put_line('----------------------------------------------------------');
+		
 		 -- 1. ps_month에 해당하는 월의 ch17_sales_detail 데이터 삭제
+		vd_sysdate := sysdate;
+	
 		DELETE ch17_sales_detail
 		WHERE sales_month = ps_month;
 	
+		vn_total_time := (sysdate - vd_sysdate) * 60 * 60 * 24;
+		dbms_output.put_line('DELETE 건수: ' || SQL%rowcount || ' , 소요 시간: ' || vn_total_time);
+	
 		 -- 2. ps_month에 해당하는 월의 ch17_sales_detail 데이터 생성
+		vd_sysdate := sysdate;
+	
 		INSERT INTO ch17_sales_detail
 		SELECT b.prod_name,
 			   d.channel_desc,
@@ -6136,27 +6151,36 @@ CREATE OR REPLACE PACKAGE BODY ch17_src_test_pkg IS
 			     a.sales_date,
 			     a.sales_month;
 			    
+		vn_total_time := (sysdate - vd_sysdate) * 60 * 60 * 24;
+		dbms_output.put_line('INSERT 건수: ' || SQL%rowcount || ' , 소요 시간: ' || vn_total_time);
+			    
 		 -- 3. 판매금액(sales_amt)이 pn_amt보다 큰 건은 pn_rate 비율만큼 할인
+		vd_sysdate := sysdate;
+	
 		UPDATE ch17_sales_detail
 		SET sales_amt = sales_amt - (sales_amt * pn_rate * 0.01)
 		WHERE sales_month = ps_month
 		AND sales_amt > pn_amt;
 	
-		COMMIT;
+		vn_total_time := (sysdate - vd_sysdate) * 60 * 60 * 24;
+		dbms_output.put_line('UPDATE 건수: ' || SQL%rowcount || ' , 소요 시간: ' || vn_total_time);
 	
-	EXCEPTION WHEN OTHERS THEN 
-		dbms_output.put_line(sqlerrm);
-		ROLLBACK;
+		COMMIT;
+		EXCEPTION WHEN OTHERS THEN 
+			dbms_output.put_line(sqlerrm);
+			ROLLBACK;
 	
 	END sales_detail_prc;
 
 END ch17_src_test_pkg;
 
+SELECT SUM(SALES_AMT) FROM ch17_sales_detail ;
+
 BEGIN 
 	ch17_src_test_pkg.sales_detail_prc(
 		ps_month => '200112',
-		pn_amt => 10000,
-		pn_rate => 1
+		pn_amt => 50,
+		pn_rate => 32.5
 	);
 END;
 
@@ -6192,4 +6216,239 @@ WHERE
 	DATA.AMOUNT_SOLD > 10000
 ;
 
-SELECT * FROM ch17_sales_detail ;
+SELECT sales_month, COUNT(*)  
+FROM ch17_sales_detail
+GROUP BY sales_month
+ORDER BY sales_month
+;
+
+ -- 소요 시간 계산의 다른 방법
+CREATE OR REPLACE PACKAGE BODY ch17_src_test_pkg IS 
+
+	PROCEDURE sales_detail_prc(
+		ps_month IN varchar2,	-- 월
+		pn_amt IN NUMBER,		-- 금액
+		pn_rate IN NUMBER		-- 할인률
+	)
+	IS 
+		vn_total_time NUMBER := 0;
+	BEGIN 
+		dbms_output.put_line('-----------------------<변수값 출력>-----------------------');
+		dbms_output.put_line('ps_month: ' || ps_month);
+		dbms_output.put_line('pn_amt: ' || pn_amt);
+		dbms_output.put_line('pn_rate: ' || pn_rate);
+		dbms_output.put_line('----------------------------------------------------------');
+		
+		 -- 1. ps_month에 해당하는 월의 ch17_sales_detail 데이터 삭제
+		vn_total_time := dbms_utility.get_time;
+	
+		DELETE ch17_sales_detail
+		WHERE sales_month = ps_month;
+	
+		vn_total_time := (dbms_utility.get_time - vn_total_time) / 100;
+		dbms_output.put_line('DELETE 건수: ' || SQL%rowcount || ' , 소요 시간: ' || vn_total_time);
+	
+		 -- 2. ps_month에 해당하는 월의 ch17_sales_detail 데이터 생성
+		vn_total_time := dbms_utility.get_time;
+	
+		INSERT INTO ch17_sales_detail
+		SELECT b.prod_name,
+			   d.channel_desc,
+			   c.cust_name,
+			   e.emp_name,
+			   a.sales_date,
+			   a.sales_month,
+			   SUM(a.quantity_sold) ,
+			   SUM(a.amount_sold) 
+		FROM SALES a,
+			 PRODUCTS b,
+			 CUSTOMERS c,
+			 CHANNELS d,
+			 EMPLOYEES e
+		WHERE a.sales_month = ps_month
+		AND   a.prod_id = b.prod_id
+		AND   a.cust_id = c.cust_id
+		AND   a.channel_id = d.channel_id
+		AND   a.employee_id = e.employee_id
+		GROUP BY b.prod_name,
+			   	 d.channel_desc,
+			     c.cust_name,
+			     e.emp_name,
+			     a.sales_date,
+			     a.sales_month;
+			    
+		vn_total_time := (dbms_utility.get_time - vn_total_time) / 100;
+		dbms_output.put_line('INSERT 건수: ' || SQL%rowcount || ' , 소요 시간: ' || vn_total_time);
+			    
+		 -- 3. 판매금액(sales_amt)이 pn_amt보다 큰 건은 pn_rate 비율만큼 할인
+		vn_total_time := dbms_utility.get_time;
+	
+		UPDATE ch17_sales_detail
+		SET sales_amt = sales_amt - (sales_amt * pn_rate * 0.01)
+		WHERE sales_month = ps_month
+		AND sales_amt > pn_amt;
+	
+		vn_total_time := (dbms_utility.get_time - vn_total_time) / 100;
+		dbms_output.put_line('UPDATE 건수: ' || SQL%rowcount || ' , 소요 시간: ' || vn_total_time);
+	
+		COMMIT;
+		EXCEPTION WHEN OTHERS THEN 
+			dbms_output.put_line(sqlerrm);
+			ROLLBACK;
+	
+	END sales_detail_prc;
+
+END ch17_src_test_pkg;
+
+ -- 로그 테이블
+CREATE TABLE program_log(
+	log_id NUMBER,				-- 로그 아이디
+	program_name varchar2(100),	-- 프로그램명
+	parameters varchar2(500),	-- 프로그램 매개변수
+	state varchar2(10),			-- 상태(Running, Completed, Error)
+	start_time timestamp,		-- 시작시간
+	end_time timestamp,			-- 종료시간
+	log_desc varchar2(2000)		-- 로그내용
+);
+
+ -- 시퀀스 생성
+CREATE SEQUENCE prg_log_seq
+INCREMENT BY 1
+START WITH 1
+MINVALUE 1
+MAXVALUE 1000000
+nocycle 
+nocache;
+
+ -- 로그 쌓는 루틴 추가
+CREATE OR REPLACE PACKAGE BODY ch17_src_test_pkg IS 
+
+	PROCEDURE sales_detail_prc(
+		ps_month IN varchar2,	-- 월
+		pn_amt IN NUMBER,		-- 금액
+		pn_rate IN NUMBER		-- 할인률
+	)
+	IS 
+		vn_total_time NUMBER := 0;
+	
+		vn_log_id NUMBER;
+		vs_parameters varchar2(500);
+		vs_prg_log varchar2(2000);
+	BEGIN 
+		vs_parameters := 'ps_month => ' || ps_month || ', pn_amt => ' || pn_amt || ' , pn_rate => ' || pn_rate;
+	
+		BEGIN 
+			vn_log_id := prg_log_seq.nextval;
+			INSERT INTO program_log (
+				LOG_ID,
+				PROGRAM_NAME,
+				PARAMETERS,
+				STATE,
+				START_TIME
+			)
+			VALUES (
+				vn_log_id,
+				'CH17_SRC_TEST_PKG.sales_detail_prc',
+				vs_parameters,
+				'Running',
+				systimestamp
+			);
+		
+			COMMIT;
+		END;
+		
+		 -- 1. ps_month에 해당하는 월의 ch17_sales_detail 데이터 삭제
+		vn_total_time := dbms_utility.get_time;
+	
+		DELETE ch17_sales_detail
+		WHERE sales_month = ps_month;
+	
+		vn_total_time := (dbms_utility.get_time - vn_total_time) / 100;
+	
+		vs_prg_log := 'DELETE 건수: ' || SQL%rowcount || ' , 소요 시간: ' || vn_total_time || chr(13);
+	
+		 -- 2. ps_month에 해당하는 월의 ch17_sales_detail 데이터 생성
+		vn_total_time := dbms_utility.get_time;
+	
+		INSERT INTO ch17_sales_detail
+		SELECT b.prod_name,
+			   d.channel_desc,
+			   c.cust_name,
+			   e.emp_name,
+			   a.sales_date,
+			   a.sales_month,
+			   SUM(a.quantity_sold) ,
+			   SUM(a.amount_sold) 
+		FROM SALES a,
+			 PRODUCTS b,
+			 CUSTOMERS c,
+			 CHANNELS d,
+			 EMPLOYEES e
+		WHERE a.sales_month = ps_month
+		AND   a.prod_id = b.prod_id
+		AND   a.cust_id = c.cust_id
+		AND   a.channel_id = d.channel_id
+		AND   a.employee_id = e.employee_id
+		GROUP BY b.prod_name,
+			   	 d.channel_desc,
+			     c.cust_name,
+			     e.emp_name,
+			     a.sales_date,
+			     a.sales_month;
+			    
+		vn_total_time := (dbms_utility.get_time - vn_total_time) / 100;
+		
+		vs_prg_log := vs_prg_log || 'INSERT 건수: ' || SQL%rowcount || ' , 소요 시간: ' || vn_total_time || chr(13);
+			    
+		 -- 3. 판매금액(sales_amt)이 pn_amt보다 큰 건은 pn_rate 비율만큼 할인
+		vn_total_time := dbms_utility.get_time;
+	
+		UPDATE ch17_sales_detail
+		SET sales_amt = sales_amt - (sales_amt * pn_rate * 0.01)
+		WHERE sales_month = ps_month
+		AND sales_amt > pn_amt;
+	
+		vn_total_time := (dbms_utility.get_time - vn_total_time) / 100;
+		
+		vs_prg_log := vs_prg_log || 'UPDATE 건수: ' || SQL%rowcount || ' , 소요 시간: ' || vn_total_time || chr(13);
+	
+		COMMIT;
+	
+		BEGIN 
+			UPDATE program_log
+			SET state = 'Completed',
+				end_time = SYSTIMESTAMP,
+				log_desc = vs_prg_log || '작업종료!'
+			WHERE log_id = vn_log_id;
+		
+			COMMIT;
+		END;
+	
+		EXCEPTION WHEN OTHERS THEN 
+			BEGIN 
+				vs_prg_log := sqlerrm;
+			
+				UPDATE program_log
+				SET state = 'Error',
+					end_time = SYSTIMESTAMP,
+					log_desc = vs_prg_log
+				WHERE log_id = vn_log_id;
+			
+				COMMIT;
+			END;
+			ROLLBACK;
+	
+	END sales_detail_prc;
+END ch17_src_test_pkg;
+
+BEGIN 
+	ch17_src_test_pkg.sales_detail_prc(
+		ps_month => '200112',
+		pn_amt => 50,
+		pn_rate => 32.5
+	);
+END;
+
+SELECT * FROM program_log ;
+
+SELECT prg_log_seq.currval FROM dual ;
