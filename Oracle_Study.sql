@@ -6452,3 +6452,234 @@ END;
 SELECT * FROM program_log ;
 
 SELECT prg_log_seq.currval FROM dual ;
+
+
+ -- 230604
+ -- 동적 쿼리 디버깅
+CREATE OR REPLACE PROCEDURE ch17_dynamic_test (
+	p_emp_id NUMBER,
+	p_emp_name varchar2,
+	p_job_id varchar2
+)
+IS 
+	vs_query varchar2(1000);
+	vn_cnt NUMBER := 0;
+	vs_empname employees.emp_name%TYPE := '%' || p_emp_name || '%';
+BEGIN 
+	vs_query := 'select count(*) ' || chr(13);
+	vs_query := vs_query || ' from employees ' || chr(13);
+	vs_query := vs_query || ' where 1=1 ' || chr(13);
+
+	IF p_emp_id IS NOT NULL THEN
+		vs_query := vs_query || ' and employee_id = ' || p_emp_id || chr(13);
+	END IF;
+	
+	IF p_emp_name IS NOT null THEN
+		vs_query := vs_query || ' and emp_name like ' || '''' || vs_empname || '''' || chr(13);
+	END IF;
+	
+	IF p_job_id IS NOT null THEN
+		vs_query := vs_query || ' and job_id = ' || '''' || p_job_id || '''' || chr(13);
+	END IF;
+	
+	EXECUTE IMMEDIATE vs_query INTO vn_cnt;
+
+	dbms_output.put_line('결과건수: ' || vn_cnt);
+	dbms_output.put_line(vs_query);
+END;
+
+BEGIN 
+	ch17_dynamic_test(171, NULL, null);
+END;
+
+BEGIN 
+	ch17_dynamic_test(null, 'Jon', null);
+END;
+
+BEGIN 
+	ch17_dynamic_test(null, null, 'SA_REP');
+END;
+
+BEGIN 
+	ch17_dynamic_test(null, 'Jon', 'SA_REP');
+END;
+
+ -- 동적 쿼리 디버깅용 테이블
+CREATE TABLE ch17_dyquery(
+	program_name varchar2(50),
+	query_text clob
+);
+
+CREATE OR REPLACE PROCEDURE ch17_dynamic_test (
+	p_emp_id NUMBER,
+	p_emp_name varchar2,
+	p_job_id varchar2
+)
+IS 
+	vs_query varchar2(1000);
+	vn_cnt NUMBER := 0;
+	vs_empname employees.emp_name%TYPE := '%' || p_emp_name || '%';
+BEGIN 
+	vs_query := 'select count(*) ' || chr(13);
+	vs_query := vs_query || ' from employees ' || chr(13);
+	vs_query := vs_query || ' where 1=1 ' || chr(13);
+
+	IF p_emp_id IS NOT NULL THEN
+		vs_query := vs_query || ' and employee_id = ' || p_emp_id || chr(13);
+	END IF;
+	
+	IF p_emp_name IS NOT null THEN
+		vs_query := vs_query || ' and emp_name like ' || '''' || vs_empname || '''' || chr(13);
+	END IF;
+	
+	IF p_job_id IS NOT null THEN
+		vs_query := vs_query || ' and job_id = ' || '''' || p_job_id || '''' || chr(13);
+	END IF;
+	
+	EXECUTE IMMEDIATE vs_query INTO vn_cnt;
+
+	dbms_output.put_line('결과건수: ' || vn_cnt);
+	
+	DELETE ch17_dyquery;
+
+	INSERT INTO ch17_dyquery (program_name, query_text)
+	VALUES ('ch17_dynamic_test', vs_query);
+
+	COMMIT;
+END;
+
+BEGIN 
+	ch17_dynamic_test(null, 'Jon', 'SA_REP');
+END;
+
+SELECT * FROM ch17_dyquery ;
+SELECT * FROM EMPLOYEES ;
+
+ -- 사원의 급여을 갱신하는 프로시저
+CREATE OR REPLACE PROCEDURE ch17_upd_test_prc (
+	pn_emp_id NUMBER,
+	pn_rate number
+)
+IS 
+	vn_salary NUMBER := 0;
+BEGIN 
+	UPDATE EMPLOYEES 
+	SET salary = salary * pn_rate * 0.01
+	WHERE employee_id = pn_emp_id;
+
+	SELECT salary
+	INTO vn_salary
+	FROM employees
+	WHERE employee_id = pn_emp_id; 
+
+	dbms_output.put_line('사번: ' || pn_emp_id);
+	dbms_output.put_line('급여: ' || vn_salary);
+
+	COMMIT;
+END;
+
+BEGIN 
+	ch17_upd_test_prc(171, 10);
+END;
+
+ -- RETURNING INTO 절 - 단일 로우 UPDATE
+DECLARE 
+	vn_salary NUMBER := 0;
+	vs_empname varchar2(30);
+BEGIN 
+	UPDATE EMPLOYEES 
+	SET salary = 10000
+	WHERE employee_id = 171
+	returning emp_name, salary 
+	INTO vs_empname, vn_salary;
+
+	COMMIT;
+
+	dbms_output.put_line('변경 사원명: ' || vs_empname);
+	dbms_output.put_line('변경 급여: ' || vn_salary);
+END;
+
+ -- RETURNING INTO 절 - 다중 로우 UPDATE
+DECLARE 
+	TYPE NT_EMP_REC IS RECORD (
+		emp_name employees.emp_name%TYPE,
+		department_id employees.department_id%TYPE,
+		retire_date employees.retire_date%type
+	);
+
+ 	 -- NT_EMP_REC 레코드를 요소로 하는 중첩 테이블
+	TYPE NTT_EMP IS TABLE OF NT_EMP_REC;
+
+	VR_EMP NTT_EMP;
+BEGIN 
+	UPDATE EMPLOYEES 
+	SET retire_date = sysdate 
+	WHERE department_id = 100
+	returning emp_name, department_id, retire_date
+	BULK COLLECT INTO VR_EMP;
+
+	COMMIT;
+
+	FOR i IN VR_EMP.FIRST..VR_EMP.LAST
+	LOOP
+		dbms_output.put_line(i || '-----------------------------');
+		dbms_output.put_line('변경 사원명: ' || VR_EMP(i).emp_name);
+		dbms_output.put_line('변경 부서: ' || VR_EMP(i).department_id);
+		dbms_output.put_line('retire_date: ' || VR_EMP(i).retire_date);
+	END LOOP;
+END;
+
+SELECT * FROM EMPLOYEES ;
+
+ -- RETURNING INTO 절 - 단일 로우 DELETE
+ -- 사원 테이블을 복사한 emp_bk 테이블
+CREATE TABLE emp_bk AS 
+SELECT *
+FROM EMPLOYEES 
+;
+
+SELECT * FROM emp_bk WHERE department_id = 60 ;
+
+DECLARE 
+	vn_salary NUMBER := 0;
+	vs_empname varchar2(30);
+BEGIN 
+	DELETE emp_bk
+	WHERE employee_id = 171
+	returning emp_name, salary
+	INTO vs_empname, vn_salary;
+
+	COMMIT;
+
+	dbms_output.put_line('삭제 사원명: ' || vs_empname);
+	dbms_output.put_line('삭제 급여: ' || vn_salary);
+END;
+
+ -- 다중 로우 DELETE
+DECLARE 
+	TYPE NT_EMP_REC IS RECORD (
+		emp_name employees.emp_name%TYPE,
+		department_id employees.department_id%TYPE,
+		job_id employees.job_id%type
+	);
+
+ 	 -- NT_EMP_REC 레코드를 요소로 하는 중첩 테이블
+	TYPE NTT_EMP IS TABLE OF NT_EMP_REC;
+
+	VR_EMP NTT_EMP;
+BEGIN 
+	DELETE emp_bk
+	WHERE department_id = 60
+	returning emp_name, department_id, job_id
+	BULK COLLECT INTO VR_EMP;
+
+	COMMIT;
+
+	FOR i IN VR_EMP.FIRST..VR_EMP.LAST
+	LOOP
+		dbms_output.put_line(i || '-----------------------------');
+		dbms_output.put_line('변경 사원명: ' || VR_EMP(i).emp_name);
+		dbms_output.put_line('변경 부서: ' || VR_EMP(i).department_id);
+		dbms_output.put_line('job_id: ' || VR_EMP(i).job_id);
+	END LOOP;
+END;
