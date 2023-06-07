@@ -6683,3 +6683,181 @@ BEGIN
 		dbms_output.put_line('job_id: ' || VR_EMP(i).job_id);
 	END LOOP;
 END;
+
+
+ -- 230607
+SELECT * FROM USER_DEPENDENCIES WHERE REFERENCED_TYPE = 'TABLE' AND REFERENCED_NAME = 'EMPLOYEES' ;
+
+ -- Self-Check 3
+CREATE OR REPLACE PROCEDURE log_proc (
+	ps_flag IN varchar2,
+	ps_prog_nm IN varchar2,
+	ps_parameters IN varchar2,
+	pn_log_id IN NUMBER,
+	ps_prg_log IN varchar2
+)
+IS
+	vs_prg_log varchar2(2000);
+BEGIN 
+	dbms_output.put_line('pn_log_id: ' || pn_log_id);
+	dbms_output.put_line('ps_prog_nm: ' || ps_prog_nm);
+	dbms_output.put_line('ps_parameters: ' || ps_parameters);
+
+	case 
+		WHEN ps_flag = 'I' THEN 
+			dbms_output.put_line('INSERT');
+		
+			INSERT INTO program_log (
+				LOG_ID,
+				PROGRAM_NAME,
+				PARAMETERS,
+				STATE,
+				START_TIME
+			)
+			VALUES (
+				pn_log_id,
+				ps_prog_nm,
+				ps_parameters,
+				'Running',
+				systimestamp
+			);
+		WHEN ps_flag = 'U' THEN 
+			dbms_output.put_line('UPDATE');
+
+			UPDATE program_log
+			SET state = 'Completed',
+				end_time = SYSTIMESTAMP,
+				log_desc = ps_prg_log || '작업종료!'
+			WHERE log_id = pn_log_id;
+		
+			COMMIT;
+	END case;
+
+	COMMIT;
+
+EXCEPTION WHEN OTHERS THEN 
+	BEGIN 
+		vs_prg_log := sqlerrm;
+		
+		UPDATE program_log
+		SET state = 'Error',
+			end_time = SYSTIMESTAMP,
+			log_desc = vs_prg_log || ' (log_proc 프로시저 실행 오류)'
+		WHERE log_id = pn_log_id;
+	
+		COMMIT;
+	END;
+	ROLLBACK;
+END;
+
+ -- Self-Check 4
+CREATE OR REPLACE PACKAGE BODY ch17_src_test_pkg IS 
+
+	PROCEDURE sales_detail_prc(
+		ps_month IN varchar2,	-- 월
+		pn_amt IN NUMBER,		-- 금액
+		pn_rate IN NUMBER		-- 할인률
+	)
+	IS 
+		vn_total_time NUMBER := 0;
+	
+		vn_log_id NUMBER;
+		vs_parameters varchar2(500);
+		vs_prg_log varchar2(2000);
+	BEGIN 
+		vn_log_id := prg_log_seq.nextval;
+		vs_parameters := 'ps_month => ' || ps_month || ', pn_amt => ' || pn_amt || ' , pn_rate => ' || pn_rate;
+	
+		BEGIN 
+			log_proc('I', 'CH17_SRC_TEST_PKG.sales_detail_prc', vs_parameters, vn_log_id, null);
+		END;
+		dbms_output.put_line('111');
+		 -- 1. ps_month에 해당하는 월의 ch17_sales_detail 데이터 삭제
+		vn_total_time := dbms_utility.get_time;
+	
+		DELETE ch17_sales_detail
+		WHERE sales_month = ps_month;
+	
+		vn_total_time := (dbms_utility.get_time - vn_total_time) / 100;
+	
+		vs_prg_log := 'DELETE 건수: ' || SQL%rowcount || ' , 소요 시간: ' || vn_total_time || chr(13);
+	
+		 -- 2. ps_month에 해당하는 월의 ch17_sales_detail 데이터 생성
+		vn_total_time := dbms_utility.get_time;
+	
+		INSERT INTO ch17_sales_detail
+		SELECT b.prod_name,
+			   d.channel_desc,
+			   c.cust_name,
+			   e.emp_name,
+			   a.sales_date,
+			   a.sales_month,
+			   SUM(a.quantity_sold) ,
+			   SUM(a.amount_sold) 
+		FROM SALES a,
+			 PRODUCTS b,
+			 CUSTOMERS c,
+			 CHANNELS d,
+			 EMPLOYEES e
+		WHERE a.sales_month = ps_month
+		AND   a.prod_id = b.prod_id
+		AND   a.cust_id = c.cust_id
+		AND   a.channel_id = d.channel_id
+		AND   a.employee_id = e.employee_id
+		GROUP BY b.prod_name,
+			   	 d.channel_desc,
+			     c.cust_name,
+			     e.emp_name,
+			     a.sales_date,
+			     a.sales_month;
+			    
+		vn_total_time := (dbms_utility.get_time - vn_total_time) / 100;
+		dbms_output.put_line('222');
+		vs_prg_log := vs_prg_log || 'INSERT 건수: ' || SQL%rowcount || ' , 소요 시간: ' || vn_total_time || chr(13);
+			    
+		 -- 3. 판매금액(sales_amt)이 pn_amt보다 큰 건은 pn_rate 비율만큼 할인
+		vn_total_time := dbms_utility.get_time;
+	
+		UPDATE ch17_sales_detail
+		SET sales_amt = sales_amt - (sales_amt * pn_rate * 0.01)
+		WHERE sales_month = ps_month
+		AND sales_amt > pn_amt;
+	
+		vn_total_time := (dbms_utility.get_time - vn_total_time) / 100;
+		
+		vs_prg_log := vs_prg_log || 'UPDATE 건수: ' || SQL%rowcount || ' , 소요 시간: ' || vn_total_time || chr(13);
+	
+		COMMIT;
+	
+		BEGIN 
+			log_proc('U', null, NULL, vn_log_id, vs_prg_log);
+		END;
+	
+		EXCEPTION WHEN OTHERS THEN 
+			BEGIN 
+				vs_prg_log := sqlerrm;
+			
+				UPDATE program_log
+				SET state = 'Error',
+					end_time = SYSTIMESTAMP,
+					log_desc = vs_prg_log
+				WHERE log_id = vn_log_id;
+			
+				COMMIT;
+			END;
+			ROLLBACK;
+	
+	END sales_detail_prc;
+END ch17_src_test_pkg;
+
+BEGIN 
+	ch17_src_test_pkg.sales_detail_prc(
+		ps_month => '200112',
+		pn_amt => 50,
+		pn_rate => 32.5
+	);
+END;
+
+SELECT * FROM PROGRAM_LOG pl ORDER BY log_id DESC ;
+
+SELECT * FROM CH17_SALES_DETAIL csd WHERE sales_month = '200112' ;
