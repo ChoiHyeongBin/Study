@@ -6961,10 +6961,8 @@ DECLARE
 	vv_host varchar2(30) := 'localhost';	-- SMTP 서버명
 	vn_port NUMBER := 25;	-- 포트번호
 	vv_domain varchar2(30) := 'hbchoi.mydns.jp';
-
 	vv_from varchar2(50) := 'hbchoi@hbchoi.mydns.jp';	-- 보내는 주소
 	vv_to varchar2(50) := 'hbchoi@hbchoi.mydns.jp';		-- 받는 주소
-	vv_text varchar2(300);
 	
 	c utl_smtp.CONNECTION;	-- SMTP 서버 연결 객체
 BEGIN 
@@ -7008,3 +7006,102 @@ WHEN OTHERS THEN
 END;
 
 select * from nls_database_parameters where parameter = 'NLS_CHARACTERSET';
+
+ -- HTML 메일 보내기
+DECLARE 
+	vv_host varchar2(30) := 'localhost';				-- SMTP 서버명
+	vn_port NUMBER := 25;								-- 포트번호
+	vv_domain varchar2(30) := 'hbchoi.mydns.jp';
+	vv_from varchar2(50) := 'hbchoi@hbchoi.mydns.jp';	-- 보내는 주소
+	vv_to varchar2(50) := 'hbchoi@hbchoi.mydns.jp';		-- 받는 주소
+	
+	c utl_smtp.CONNECTION;	-- SMTP 서버 연결 객체
+	vv_html varchar2(200);	-- HTML 메시지를 담을 변수
+BEGIN 
+	c := utl_smtp.open_connection(vv_host, vn_port);	-- SMTP 서버와 연결
+	
+	utl_smtp.helo(c, vv_domain);	-- HELO
+	utl_smtp.mail(c, vv_from);		-- 보내는 사람
+	utl_smtp.rcpt(c, vv_to);		-- 받는 사람
+	
+	utl_smtp.open_data(c);	-- 메일 본문 작성 시작
+	
+	utl_smtp.write_data(c, 'MIME-Version: 1.0' || utl_tcp.crlf);	-- MIME 버전
+	utl_smtp.write_data(c, 'Content-Type: text/html; charset="euc-kr"' || utl_tcp.crlf);
+	
+	utl_smtp.write_raw_data(c, utl_raw.CAST_to_raw('From: ' || '"홍길동" <hbchoi@hbchoi.mydns.jp>' || utl_tcp.crlf) );	-- 보내는 사람
+	utl_smtp.write_raw_data(c, utl_raw.CAST_to_raw('To: ' || '"홍길동" <hbchoi@hbchoi.mydns.jp>' || utl_tcp.crlf) );	-- 받는 사람
+	utl_smtp.write_raw_data(c, utl_raw.CAST_to_raw('Subject: HTML 테스트 메일' || utl_tcp.crlf) );	-- 제목
+	utl_smtp.write_data(c, utl_tcp.crlf);	-- 한 줄 띄우기
+
+	 -- HTML 본문을 작성
+	vv_html := '<HEAD>
+	<TITLE>HTML 테스트</TITLE>
+	</HEAD>
+	<BODY>
+	<p>이 메일은 <b>HTML</b><i>버전</i>으로</p>
+	<p>작성된 <strong>메일</strong>입니다. </p>
+	</BODY>
+	</HTML>';
+
+	 -- 메일 본문
+	utl_smtp.write_raw_data(c, utl_raw.CAST_to_raw(vv_html || utl_tcp.crlf));
+	
+	utl_smtp.close_data(c);
+	utl_smtp.quit(c);
+
+EXCEPTION 
+WHEN utl_smtp.invalid_operation THEN 
+	 -- UTL_SMTP를 사용하는 메일에서 잘못된 작업입니다.
+	dbms_output.put_line(' Invalid Operation in Mail attempt using UTL_SMTP.');
+	dbms_output.put_line(sqlerrm);
+	utl_smtp.quit(c);
+WHEN utl_smtp.transient_error THEN 
+	-- 일시적인 전자 메일 문제 - 다시 시도
+	dbms_output.put_line(' Temporary e-mail issue - try again');
+	utl_smtp.quit(c);
+WHEN utl_smtp.permanent_error THEN 
+	 -- 영구 오류 발생
+	dbms_output.put_line(' Permanent Error Encountered.');
+	dbms_output.put_line(sqlerrm);
+	utl_smtp.quit(c);
+WHEN OTHERS THEN 
+	dbms_output.put_line(sqlerrm);
+	utl_smtp.quit(c);
+END;
+
+ -- 첨부파일 보내기
+ -- 세팅
+CREATE OR REPLACE directory smtp_file AS 'C:\ch18_file';
+
+ -- 매개변수로 디렉토리와 파일명을 받아, 이 파일을 읽어 RAW 타입으로 반환하는 함수
+CREATE OR REPLACE FUNCTION fn_get_raw_file(
+	p_dir varchar2,
+	p_file varchar2
+)
+	RETURN raw 
+IS 
+	vf_buffer raw(32767);
+	vf_raw	  raw(32767);
+	vf_type UTL_FILE.FILE_TYPE;
+BEGIN 
+	vf_type := UTL_FILE.fopen(p_dir, p_file, 'rb');
+
+	IF UTL_FILE.is_open(vf_type) THEN 
+		LOOP
+		BEGIN 
+			dbms_output.put_line('get_raw 타기 전 vf_buffer: ' || vf_buffer);
+			UTL_FILE.get_raw(vf_type, vf_buffer, 32767);
+			dbms_output.put_line('get_raw 타고 나서 vf_buffer: ' || vf_buffer);
+			vf_raw := vf_raw || vf_buffer;
+		
+		EXCEPTION 
+			WHEN no_data_found THEN 
+			EXIT;
+		END;
+		END LOOP;
+	END IF;
+
+	UTL_FILE.fclose(vf_type);
+	RETURN vf_raw;
+END;
