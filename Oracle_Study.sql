@@ -6861,3 +6861,150 @@ END;
 SELECT * FROM PROGRAM_LOG pl ORDER BY log_id DESC ;
 
 SELECT * FROM CH17_SALES_DETAIL csd WHERE sales_month = '200112' ;
+
+
+ -- 230609
+ -- 메일 전송 전 사전준비
+ -- 1. ACL 등록 및 권한 할당
+BEGIN 
+	dbms_network_acl_admin.create_acl(
+		acl => 'my_mail.xml',
+		description => '메일전송용 ACL',
+		principal => 'ORA_USER',
+		is_grant => TRUE,
+		privilege => 'connect'
+	);
+
+	COMMIT;
+END;
+
+ -- 2. 권한 등록
+BEGIN 
+	dbms_network_acl_admin.add_privilege(
+		acl => 'my_mail.xml',
+		principal => 'ORA_USER',
+		is_grant => TRUE,
+		privilege => 'resolve'
+	);
+
+	COMMIT;
+END;
+
+ -- 3. ACL과 호스트명 연결
+BEGIN 
+	dbms_network_acl_admin.assign_acl(
+		acl => 'my_mail.xml',
+		host => 'localhost',
+		lower_port => 25
+	);
+
+	COMMIT;
+END;
+
+SELECT * FROM DBA_NETWORK_ACLS ;
+
+ -- 한글 메일 테스트
+DECLARE 
+	vv_host varchar2(30) := 'localhost';	-- SMTP 서버명
+	vn_port NUMBER := 25;	-- 포트번호
+	vv_domain varchar2(30) := 'hbchoi.mydns.jp';
+
+	vv_from varchar2(50) := 'hbchoi@hbchoi.mydns.jp';	-- 보내는 주소
+	vv_to varchar2(50) := 'hbchoi@hbchoi.mydns.jp';		-- 받는 주소
+	
+	c utl_smtp.CONNECTION;	-- SMTP 서버 연결 객체
+BEGIN 
+	c := utl_smtp.open_connection(vv_host, vn_port);	-- SMTP 서버와 연결
+	
+	utl_smtp.helo(c, vv_domain);	-- HELO
+	utl_smtp.mail(c, vv_from);		-- 보내는 사람
+	utl_smtp.rcpt(c, vv_to);		-- 받는 사람
+	
+	utl_smtp.open_data(c);	-- 메일 본문 작성 시작
+	utl_smtp.write_data(c, 'From: ' || '"choi2" <hbchoi@hbchoi.mydns.jp>' || utl_tcp.crlf);	-- 보내는 사람
+	utl_smtp.write_data(c, 'To: ' || '"choi1" <hbchoi@hbchoi.mydns.jp>' || utl_tcp.crlf);	-- 받는 사람
+
+	utl_smtp.write_data(c, 'Subject: Test' || utl_tcp.crlf);	-- 제목
+	utl_smtp.write_data(c, utl_tcp.crlf);	-- 한 줄 띄우기
+	utl_smtp.write_raw_data(c, utl_raw.CAST_to_raw('한글 메일 테스트' || utl_tcp.crlf));	-- 본문
+	
+	utl_smtp.close_data(c);
+
+	 -- 종료
+	utl_smtp.quit(c);
+
+EXCEPTION 
+WHEN utl_smtp.invalid_operation THEN 
+	 -- UTL_SMTP를 사용하는 메일에서 잘못된 작업입니다.
+	dbms_output.put_line(' Invalid Operation in Mail attempt using UTL_SMTP.');
+	dbms_output.put_line(sqlerrm);
+	utl_smtp.quit(c);
+WHEN utl_smtp.transient_error THEN 
+	-- 일시적인 전자 메일 문제 - 다시 시도
+	dbms_output.put_line(' Temporary e-mail issue - try again');
+	utl_smtp.quit(c);
+WHEN utl_smtp.permanent_error THEN 
+	 -- 영구 오류 발생
+	dbms_output.put_line(' Permanent Error Encountered.');
+	dbms_output.put_line(sqlerrm);
+	utl_smtp.quit(c);
+WHEN OTHERS THEN 
+	dbms_output.put_line(sqlerrm);
+	utl_smtp.quit(c);
+END;
+
+select '홍길동', utl_raw.CAST_to_raw('한글 메일 테스트') from dual;
+select UTL_RAW.CAST_TO_VARCHAR2('C8ABB1E6B5BF') from dual;
+
+ -- 보낸 사람, 받는 사람, 제목을 한글로 작성하기
+DECLARE 
+	vv_host varchar2(30) := 'localhost';	-- SMTP 서버명
+	vn_port NUMBER := 25;	-- 포트번호
+	vv_domain varchar2(30) := 'hbchoi.mydns.jp';
+
+	vv_from varchar2(50) := 'hbchoi@hbchoi.mydns.jp';	-- 보내는 주소
+	vv_to varchar2(50) := 'hbchoi@hbchoi.mydns.jp';		-- 받는 주소
+	vv_text varchar2(300);
+	
+	c utl_smtp.CONNECTION;	-- SMTP 서버 연결 객체
+BEGIN 
+	c := utl_smtp.open_connection(vv_host, vn_port);	-- SMTP 서버와 연결
+	
+	utl_smtp.helo(c, vv_domain);	-- HELO
+	utl_smtp.mail(c, vv_from);		-- 보내는 사람
+	utl_smtp.rcpt(c, vv_to);		-- 받는 사람
+	
+	utl_smtp.open_data(c);	-- 메일 본문 작성 시작
+	
+	vv_text := 'From: ' || '"홍길동" <hbchoi@hbchoi.mydns.jp>' || utl_tcp.crlf;	-- 보내는 사람
+	vv_text := vv_text || 'To: ' || '"홍길동" <hbchoi@hbchoi.mydns.jp>' || utl_tcp.crlf;	-- 받는 사람
+	vv_text := vv_text || 'Subject: 한글제목' || utl_tcp.crlf;	-- 제목
+	vv_text := vv_text || utl_tcp.crlf;	-- 한 줄 띄우기
+	vv_text := vv_text || '한글 메일 테스트' || utl_tcp.crlf;	-- 본문
+	
+	utl_smtp.write_raw_data(c, utl_raw.cast_to_raw(vv_text));
+	
+	utl_smtp.close_data(c);
+	utl_smtp.quit(c);
+
+EXCEPTION 
+WHEN utl_smtp.invalid_operation THEN 
+	 -- UTL_SMTP를 사용하는 메일에서 잘못된 작업입니다.
+	dbms_output.put_line(' Invalid Operation in Mail attempt using UTL_SMTP.');
+	dbms_output.put_line(sqlerrm);
+	utl_smtp.quit(c);
+WHEN utl_smtp.transient_error THEN 
+	-- 일시적인 전자 메일 문제 - 다시 시도
+	dbms_output.put_line(' Temporary e-mail issue - try again');
+	utl_smtp.quit(c);
+WHEN utl_smtp.permanent_error THEN 
+	 -- 영구 오류 발생
+	dbms_output.put_line(' Permanent Error Encountered.');
+	dbms_output.put_line(sqlerrm);
+	utl_smtp.quit(c);
+WHEN OTHERS THEN 
+	dbms_output.put_line(sqlerrm);
+	utl_smtp.quit(c);
+END;
+
+select * from nls_database_parameters where parameter = 'NLS_CHARACTERSET';
