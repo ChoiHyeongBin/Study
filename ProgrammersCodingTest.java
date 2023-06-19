@@ -1,49 +1,37 @@
 package codingTest;
 
-import java.util.Arrays;
-import java.util.Comparator;
-import java.util.LinkedList;
-
 public class ProgrammersCodingTest {
 
     public static void main(String[] args) {
-    	int k = 3;
-    	int m = 4;
-//    	int[] score = new int[] {4, 1, 2, 2, 4, 4, 4, 4, 1, 2, 4, 2};
-    	int[] score = new int[] {1, 2, 3, 1, 2, 3, 1};
+    	int n = 6;
     	
-    	solution(k, m, score);
+    	solution(n);
     }
 	
-    // LV1 과일 장수
-    public static int solution(int k, int m, int[] score) {
-        int answer = 0;
-        Integer[] tmp = Arrays.stream(score).boxed().toArray(Integer[]::new);
-        Arrays.sort(tmp, Comparator.reverseOrder());
+    // LV2 멀리 뛰기
+    public static long solution(int n) {
+    	// 피보나치수열
+        long[] dp = new long[n + 2];
         
-        System.out.println(Arrays.toString(tmp));
-
-        // *시간 초과
-//        LinkedList<Integer> newArr = new LinkedList<Integer>();
+        dp[0] = 0;
+        dp[1] = 1;
+        dp[2] = 2;
         
-//        for (Integer i : tmp) {
-//        	newArr.add(i);
-//        }
-        
-//        System.out.println(newArr);
-        
-        int cnt = 0;
-        for (int i = 0; i < tmp.length; i++) {
-        	cnt++;
-        	
-        	if (cnt == m) {
-        		answer += tmp[i] * m;
-        		cnt = 0;
-        	}
+        for (int i = 3; i <= n; i++) {
+        	dp[i] = (dp[i - 1] + dp[i - 2]) % 1234567;
+        	System.out.println("dp[i]: " + dp[i]);
         }
         
+        return dp[n];
+    	
+    	// 재귀함수
+    	/* int answer = 0;
+
+        if (n <= 2) return n;
+                answer = (int) (solution(n-1) + solution(n-2));
         System.out.println("answer: " + answer);
-        return answer;
+
+        return answer; */
     }
 
 }
