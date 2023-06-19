@@ -7105,3 +7105,125 @@ BEGIN
 	UTL_FILE.fclose(vf_type);
 	RETURN vf_raw;
 END;
+
+
+ -- 230619
+ -- 파일을 첨부해 메일 전송
+DECLARE 
+	vv_host 	varchar2(30) := 'localhost';				-- SMTP 서버명
+	vn_port 	NUMBER := 25;								-- 포트번호
+	vv_domain 	varchar2(30) := 'hbchoi.mydns.jp';
+	vv_from 	varchar2(50) := 'hbchoi@hbchoi.mydns.jp';	-- 보내는 주소
+	vv_to 		varchar2(50) := 'hbchoi@hbchoi.mydns.jp';	-- 받는 주소
+	
+	c			utl_smtp.CONNECTION;
+	vv_html		varchar2(200);	-- HTML 메시지를 담을 변수
+	
+	 -- boundary 표시를 위한 변수
+	vv_boundary varchar2(50) := 'DIFOJSLKDFO.WEFOWJFOWE';
+
+	vv_directory varchar2(30) := 'SMTP_FILE';			-- 파일이 있는 디렉토리명
+	vv_filename	 varchar2(30) := 'ch18_txt_file.txt';	-- 파일명
+	vf_file_buff raw(32767);	-- 실제 파일을 담을 RAW타입 변수
+	vf_temp_buff raw(54);		-- 메일에 파일을 한 줄씩 쓸때 사용할 RAW타입 변수
+	vn_file_len  NUMBER := 0;	-- 파일 길이
+	
+	 -- 한 줄당 올 수 있는 BASE64 변환된 데이터 최대 길이
+	vn_base64_max_len NUMBER := 54;	-- 76 * (3/4);
+	vn_pos			  NUMBER := 1;	-- 파일 위치를 담는 변수
+	
+	 -- 파일을 한 줄씩 자를 때 사용할 단위 바이트 수
+	vn_divide NUMBER := 0;
+BEGIN 
+	c := utl_smtp.open_connection(vv_host, vn_port);
+
+	utl_smtp.helo(c, vv_domain);	-- HELO
+	utl_smtp.mail(c, vv_from);		-- 보내는 사람
+	utl_smtp.rcpt(c, vv_to);		-- 받는 사람
+	
+	utl_smtp.open_data(c);	-- 메일 본문 작성 시작
+	utl_smtp.write_data(c, 'MIME-Version: 1.0' || utl_tcp.crlf);	-- MIME 버전
+	utl_smtp.write_data(c, 'Content-Type: multipart/mixed; boundary="' 
+						|| vv_boundary || '"' || utl_tcp.crlf);
+	
+	utl_smtp.write_raw_data(c, utl_raw.cast_to_raw('From: ' || '"홍길동" 
+							<hbchoi@hbchoi.mydns.jp>' || utl_tcp.crlf));
+	utl_smtp.write_raw_data(c, utl_raw.cast_to_raw('To: ' || '"홍길동" 
+							<hbchoi@hbchoi.mydns.jp>' || utl_tcp.crlf));
+	utl_smtp.write_raw_data(c, utl_raw.cast_to_raw('Subject: HTML 첨부파일 테스트' || utl_tcp.crlf));
+	utl_smtp.write_data(c, utl_tcp.crlf);
+
+	 -- HTML 본문 작성
+	vv_html := '<HEAD>
+	<TITLE>HTML 테스트</TITLE>
+	</HEAD>
+	<BODY>
+	<p>이 메일은 <b>HTML</b><i>버전</i>으로</p>
+	<p>첨부파일까지 들어간 <strong>메일</strong>입니다. </p>
+	</BODY>
+	</HTML>';
+
+	 -- 메일 본문
+	utl_smtp.write_data(c, '--' || vv_boundary || utl_tcp.crlf);
+	utl_smtp.write_data(c, 'Content-Type: text/html;' || utl_tcp.crlf);
+	utl_smtp.write_data(c, 'charset=euc-kr' || utl_tcp.crlf);
+	utl_smtp.write_data(c, utl_tcp.crlf);
+	utl_smtp.write_raw_data(c, utl_raw.cast_to_raw(vv_html || utl_tcp.crlf));
+	utl_smtp.write_data(c, utl_tcp.crlf);
+
+	-- 첨부파일 추가
+	utl_smtp.write_data(c, '--' || vv_boundary || utl_tcp.crlf);
+	utl_smtp.write_data(c, 'Content-Type: application/octet-stream; name="' || vv_filename || '"' || utl_tcp.crlf);
+	utl_smtp.write_data(c, 'Content-Transfer-Encoding: base64' || utl_tcp.crlf);
+	utl_smtp.write_data(c, 'Content-Disposition: attachment; filename="' || vv_filename || '"' || utl_tcp.crlf);
+	utl_smtp.write_data(c, utl_tcp.crlf);
+
+	vf_file_buff := fn_get_raw_file(vv_directory, vv_filename);
+	vn_file_len := dbms_lob.getlength(vf_file_buff);
+
+	IF vn_file_len <= vn_base64_max_len THEN 
+		vn_divide := vn_file_len;
+	ELSE 
+		vn_divide := vn_base64_max_len;
+	END IF;
+
+	vn_pos := 0;
+	WHILE  vn_pos < vn_file_len
+	LOOP
+		IF (vn_file_len - vn_pos) >= vn_divide THEN
+			vn_divide := vn_divide;
+		ELSE 
+			vn_divide := vn_file_len - vn_pos;
+		END IF;
+		
+		vf_temp_buff := utl_raw.substr(vf_file_buff, vn_pos, vn_divide);
+		utl_smtp.write_raw_data(c, utl_encode.base64_encode(vf_temp_buff));
+		utl_smtp.write_data(c, utl_tcp.crlf);
+		vn_pos := vn_pos + vn_divide;
+	END LOOP;
+
+	utl_smtp.write_data(c, '--' || vv_boundary || '--' || utl_tcp.crlf);
+
+	utl_smtp.close_data(c);
+	utl_smtp.quit(c);	-- 메일 세션 종료
+
+EXCEPTION 
+WHEN utl_smtp.invalid_operation THEN 
+	 -- UTL_SMTP를 사용하는 메일에서 잘못된 작업입니다.
+	dbms_output.put_line(' Invalid Operation in Mail attempt using UTL_SMTP.');
+	dbms_output.put_line(sqlerrm);
+	utl_smtp.quit(c);
+WHEN utl_smtp.transient_error THEN 
+	 -- 일시적인 전자 메일 문제 - 다시 시도
+	dbms_output.put_line(' Temporary e-mail issue - try again');
+	utl_smtp.quit(c);
+WHEN utl_smtp.permanent_error THEN 
+	 -- 영구 오류가 발생했습니다.
+	dbms_output.put_line(' Permanent Error Encountered.');
+	dbms_output.put_line(sqlerrm);
+	utl_smtp.quit(c);
+WHEN OTHERS THEN 
+	 -- UTL_SMTP를 사용하는 메일에서 잘못된 작업입니다.
+	dbms_output.put_line(sqlerrm);
+	utl_smtp.quit(c);
+END;
