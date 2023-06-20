@@ -7097,7 +7097,11 @@ BEGIN
 		
 		EXCEPTION 
 			WHEN no_data_found THEN 
-			EXIT;
+				EXIT;
+			WHEN OTHERS THEN 
+				dbms_output.put_line('fn_get_raw_file 함수 -> others 에러');
+				dbms_output.put_line('sqlerrm: ' || sqlerrm);
+				EXIT;
 		END;
 		END LOOP;
 	END IF;
@@ -7226,4 +7230,92 @@ WHEN OTHERS THEN
 	 -- UTL_SMTP를 사용하는 메일에서 잘못된 작업입니다.
 	dbms_output.put_line(sqlerrm);
 	utl_smtp.quit(c);
+END;
+
+
+ -- 230620
+ -- utl_mail 패키지로 간단한 메일 전송
+BEGIN 
+	utl_mail.send(
+		sender => 'hbchoi@hbchoi.mydns.jp',
+		recipients => 'hbchoi@hbchoi.mydns.jp',
+		cc => NULL,
+		bcc => NULL,
+		subject => 'UTL_MAIL 전송 테스트',
+		message => 'UTL_MAIL을 이용해 전송하는 메일입니다',
+		mime_type => 'text/plain; charset=euc-kr',
+		priority => 3,
+		replyto => 'hbchoi@hbchoi.mydns.jp'
+	);
+
+EXCEPTION WHEN OTHERS THEN 
+	dbms_output.put_line(sqlerrm);
+END;
+
+ -- HTML 형식의 메일 보내기
+DECLARE 
+	vv_html varchar2(300);
+BEGIN 
+	vv_html := '<HEAD>
+	<TITLE>HTML 테스트</TITLE>
+	</HEAD>
+	<BODY>
+	<p>이 메일은 <b>HTML</b><i>버전</i>으로</p>
+	<p><strong>UTL_MAIL</strong> 패키지를 사용해 보낸 메일입니다. </p>
+	</BODY>
+	</HTML>';
+
+	utl_mail.send(
+		sender => 'hbchoi@hbchoi.mydns.jp',
+		recipients => 'hbchoi@hbchoi.mydns.jp',
+		cc => NULL,
+		bcc => NULL,
+		subject => 'UTL_MAIL 전송 테스트2',
+		message => vv_html,
+		mime_type => 'text/html; charset=euc-kr',
+		priority => 1,
+		replyto => 'hbchoi@hbchoi.mydns.jp'
+	);
+
+EXCEPTION WHEN OTHERS THEN 
+	dbms_output.put_line(sqlerrm);
+END;
+
+ -- 첨부파일 전송
+DECLARE 
+	vv_directory varchar2(30) := 'SMTP_FILE';			-- 파일이 있는 디렉토리명
+	vv_filename	 varchar2(30) := 'ch18_txt_file.txt';	-- 파일명 (jpg는 안되는걸로 보임)
+	vf_file_buff raw(32767);							-- 실제 파일을 담을 RAW타입 변수
+	vv_html varchar2(300);
+BEGIN 
+	vv_html := '<HEAD>
+	<TITLE>HTML 테스트</TITLE>
+	</HEAD>
+	<BODY>
+	<p>이 메일은 <b>HTML</b><i>버전</i>으로</p>
+	<p><strong>UTL_MAIL</strong> 패키지를 사용해 보낸 메일입니다. </p>
+	</BODY>
+	</HTML>';
+
+	 -- 파일 읽어오기
+	vf_file_buff := fn_get_raw_file(vv_directory, vv_filename);
+
+	utl_mail.send_attach_raw(
+		sender => 'hbchoi@hbchoi.mydns.jp',
+		recipients => 'hbchoi@hbchoi.mydns.jp',
+		cc => NULL,
+		bcc => NULL,
+		subject => 'UTL_MAIL 파일전송 테스트',
+		message => vv_html,
+		mime_type => 'text/html; charset=euc-kr',
+		priority => 1,
+		attachment => vf_file_buff,
+		att_inline => true,
+		att_mime_type => 'application/octet',
+		att_filename => vv_filename,
+		replyto => 'hbchoi@hbchoi.mydns.jp'
+	);
+
+EXCEPTION WHEN OTHERS THEN 
+	dbms_output.put_line(sqlerrm);
 END;
