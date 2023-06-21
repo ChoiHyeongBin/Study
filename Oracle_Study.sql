@@ -7319,3 +7319,53 @@ BEGIN
 EXCEPTION WHEN OTHERS THEN 
 	dbms_output.put_line(sqlerrm);
 END;
+
+
+ -- 230621
+ -- dbms_crypto 패키지를 사용해 문자열 데이터를 암호화/복호화
+DECLARE 
+	input_string varchar2(200) := 'The Oracle';	-- 암호화할 VARCHAR2 데이터
+	output_string varchar2(200);				-- 복호화된 VARCHAR2 데이터
+	
+	encrypted_raw raw(2000);	-- 암호화된 데이터
+	decrypted_raw raw(2000);	-- 복호화할 데이터
+	
+	num_key_bytes NUMBER := 256/8;	-- 암호화 키를 만들 길이 (256비트, 32바이트)
+	key_bytes_raw raw(32);			-- 암호화 키
+	
+	 -- 암호화 슈트
+	encryption_type pls_integer;
+BEGIN 
+	 -- 암호화 슈트 설정
+	encryption_type := dbms_crypto.encrypt_aes256 + -- 256비트 키를 사용한 AES 암호화
+					   dbms_crypto.chain_cbc + 		-- CBC 모드
+					   dbms_crypto.PAD_pkcs5;		-- PKCS5로 이루어진 패딩
+					   
+	dbms_output.put_line('원본 문자열: ' || input_string);
+
+	 -- RANDOMBYTES 함수를 사용해 암호화 키 생성
+	key_bytes_raw := dbms_crypto.RANDOMBYTES(num_key_bytes);
+
+	 -- ENCRYPT 함수로 암호화를 한다. 원본 문자열을 UTL_I18N.string_to_raw를 사용해 RAW 타입으로 변환한다.
+	encrypted_raw := dbms_crypto.ENCRYPT(src => UTL_I18N.string_to_raw(input_string, 'AL32UTF8'),
+										 typ => encryption_type,
+										 KEY => key_bytes_raw
+										);
+									
+	 -- 암호화된 RAW 데이터를 출력
+	dbms_output.put_line('암호화된 RAW 데이터: ' || encrypted_raw);
+
+	 -- 암호화 한 데이터를 다시 복호화(암호화했던 키와 암호화 슈트는 동일하게 사용해야 한다.)
+	decrypted_raw := dbms_crypto.decrypt(src => encrypted_raw,
+										 typ => encryption_type,
+										 KEY => key_bytes_raw
+										);
+									
+	dbms_output.put_line('decrypted_raw: ' || decrypted_raw);
+									
+	 -- 복호화된 RAW 타입 데이터를 UTL_I18N.raw_to_char를 사용해 다시 VARCHAR2로 변환
+	output_string := UTL_I18N.raw_to_char(decrypted_raw, 'AL32UTF8');
+
+	 -- 복호화된 문자열 출력
+	dbms_output.put_line('복호화된 문자열: ' || output_string);
+END;
