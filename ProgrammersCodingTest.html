@@ -7,52 +7,42 @@
 <body>
 
 	<script type="text/javascript">
-	
-		let k = 5;
-		let tangerine = [1, 2, 3, 4];
-	
-		solution(k, tangerine);
-	
-    // LV2 귤 고르기
-		function solution(k, tangerine) {
-			const obj = {};
-			
-			// 같은 종이 몇개가 있는지 확인한다.
-			tangerine.forEach((n) => {
-// 				console.log("n:", n);
-// 				console.log("obj[n]: ", obj[n]);
-				
-				// obj[n] 값이 있으면 1을 더한 값을
-			    // obj[n] 값이 없으면 1을 넣어준다.
-				obj[n] = ++obj[n] || 1;
-			});
-			
-			console.log("obj: ", obj);
-			
-			// 서로 다른 종류의 수의 최솟값을 구하기 위해서는 종류는 상관 없고 값만 필요합니다.
-			// Objext.values() 메서드를 통해 값만 추출 한 후
-			// sort() 메서드를 이용해 내림차순으로 정렬해줍니다.
-			const kind = Object.values(obj).sort( function (a, b) {
-// 				console.log("a: ", a);
-// 				console.log("b: ", b);
-				
-				return b - a;
-			});
-			console.log("kind: ", kind);
-			
-			let sum = 0;
-		    let answer = 0;
-		    
-		    for (let num of kind) {
-		    	console.log("num: ", num);
-		    	
-		    	answer++;	// 가짓수
-		    	sum += num;
-		    	
-		    	if (sum >= k) break;
-		    }
 
-		  	console.log("answer: ", answer);
+		let citations = [3, 0, 6, 1, 5];
+// 		let citations = [47, 42, 32, 28, 24, 22, 17, 15, 10, 10, 8];
+	
+		solution(citations);
+	
+		// LV2 H-Index
+		function solution(citations) {
+			let answer = 0;
+		    
+		    citations.sort((a, b) => b - a);
+		    console.log("citations: ", citations);
+
+		    /* *테스트케이스 통과못함
+		    for (let i = 0; i < citations.length; i++) {
+		    	let bigArr = citations.filter((item) => item >= citations[i]);
+		    	console.log("bigArr.length: ", bigArr.length);
+		    	
+		    	let smallArr = citations.filter((item) => item <= citations[i]);
+		    	console.log("smallArr.length: ", smallArr.length);
+		    	
+		    	console.log("bigArr == smallArr: ", bigArr.length === smallArr.length);
+		    	if (bigArr.length === smallArr.length) {
+		    		answer = bigArr.length;
+		    		break;
+		    	}
+		    }
+		     */
+		    
+		    for (let i = 0; i < citations.length; i++) {
+		        if (i < citations[i]) {
+		        	answer++;
+		        }
+		    }
+		    
+		    console.log("answer: ", answer);
 		    return answer;
 		}
 		
