@@ -7369,3 +7369,231 @@ BEGIN
 	 -- 복호화된 문자열 출력
 	dbms_output.put_line('복호화된 문자열: ' || output_string);
 END;
+
+
+ -- 230622
+ -- 단방향 암호화 해시 함수
+DECLARE 
+	input_string varchar2(200) := 'The Oracle';	-- 입력 VARCHAR2 데이터
+	input_raw 	 raw(128);	-- 입력 RAW 데이터
+	
+	encrypted_raw raw(2000);	-- 암호화 데이터
+	
+	key_string varchar2(8) := 'secret';	-- MAC 함수에서 사용할 비밀 키
+	
+	 -- 비밀키를 RAW 타입으로 변환
+	raw_key raw(128) := utl_raw.cast_to_raw(CONVERT(key_string, 'AL32UTF8', 'US7ASCII'));
+BEGIN 
+	 -- VARCHAR2를 RAW 타입으로 변환
+	input_raw := UTL_I18N.string_to_raw(input_string, 'AL32UTF8');
+
+	dbms_output.put_line('------------ HASH 함수 ------------');
+	encrypted_raw := dbms_crypto.hash(src => input_raw,
+									  typ => dbms_crypto.hash_sh1);
+									 
+	dbms_output.put_line('입력 문자열의 해시값: ' || rawtohex(encrypted_raw));
+
+	dbms_output.put_line('------------ MAC 함수 ------------');
+	encrypted_raw := dbms_crypto.mac(src => input_raw,
+									 typ => dbms_crypto.hmac_md5,
+									 KEY => raw_key);
+									
+	dbms_output.put_line('MAC 값: ' || rawtohex(encrypted_raw));
+END;
+
+ -- 안전한 암호화 키 관리 방법
+DECLARE 
+	vv_ddl varchar2(1000);	-- 패키지 소스를 저장하는 변수
+BEGIN 
+	 -- 패키지 소스를 vv_ddl에 설정
+	vv_ddl := 'create or replace package ch19_wrap_pkg is 
+			   pv_key_string varchar2(30) := ''OracleKey''; end ch19_wrap_pkg;';
+			  
+	 -- CREATE_WRAPPED 프로시저를 사용하면 패키지 소스를 숨기는 것과 동시에 컴파일도 수행한다.
+	dbms_ddl.CREATE_WRAPPED(vv_ddl);
+
+EXCEPTION WHEN OTHERS THEN 
+	dbms_output.put_line(sqlerrm);
+END;
+
+BEGIN 
+	dbms_output.put_line(ch19_wrap_pkg.pv_key_string);
+END;
+
+ -- 나만의 유틸리티 프로그램
+CREATE OR REPLACE PACKAGE my_util_pkg IS 
+	 -- 프로그램 소스 검색 프로시저
+	PROCEDURE program_search_prc(ps_src_text IN varchar2);
+
+	 -- 객체 검색 프로시저
+	PROCEDURE object_search_prc(ps_obj_name IN varchar2);
+
+	 -- 테이블 Layout 출력
+	PROCEDURE table_layout_prc(ps_table_name IN varchar2);
+END my_util_pkg;
+
+CREATE OR REPLACE PACKAGE BODY my_util_pkg IS 
+	 -- 프로그램 소스 검색 프로시저
+	PROCEDURE program_search_prc(ps_src_text IN varchar2)
+	IS 
+		vs_search varchar2(100);
+		vs_name   varchar2(1000);
+	BEGIN
+		 -- 찾을 키워드 앞뒤에 '%'를 붙인다.
+		vs_search := '%' || nvl(ps_src_text, '%') || '%';
+		
+		 -- dba_source에서 입력된 키워드로 소스를 검색한다.
+		 -- 입력 키워드가 대문자 혹은 소문자가 될 수 있으므로 UPPER, LOWER 함수를 이용해 검색한다.
+		FOR c_cur IN (
+			SELECT name, TYPE, line, text
+			FROM user_source
+			WHERE text LIKE upper(vs_search)
+			OR 	  text LIKE lower(vs_search)
+			ORDER BY name, TYPE, line
+		)
+		LOOP 
+			vs_name := c_cur.name || '-' || c_cur.TYPE || '-' || c_cur.line 
+						|| ' : ' || REPLACE(c_cur.text, chr(10), '');	-- '\n'를 빈 문자열로 치환
+			dbms_output.put_line(vs_name);
+		END LOOP;
+		
+	END program_search_prc;
+
+ 	 -- 객체 검색 프로시저
+	PROCEDURE object_search_prc(ps_obj_name IN varchar2)
+	IS 
+		vs_search varchar2(100);
+		vs_name   varchar2(1000);
+	BEGIN 
+		 -- 찾을 키워드 앞뒤에 '%'를 붙인다.
+		vs_search := '%' || nvl(ps_obj_name, '%') || '%';
+		
+		 -- referenced_name 입력된 키워드로 참조 객체를 검색한다.
+		FOR c_cur IN (
+			SELECT name, TYPE
+			FROM USER_DEPENDENCIES 
+			WHERE referenced_name LIKE UPPER(vs_search) 
+			ORDER BY name, TYPE
+		)
+		LOOP 
+			vs_name := c_cur.name || '-' || c_cur.TYPE;
+			dbms_output.put_line(vs_name);
+		END LOOP;
+	END object_search_prc;
+
+	 -- 테이블 Layout 출력
+	PROCEDURE table_layout_prc(ps_table_name IN varchar2)
+	IS
+		vs_table_name varchar2(50) := upper(ps_table_name);
+		vs_owner	  varchar2(50);
+		vs_columns	  varchar2(300);
+	BEGIN 
+		BEGIN 
+			 -- 테이블이 있는지 검색
+			SELECT owner
+			INTO vs_owner
+			FROM ALL_TABLES 
+			WHERE table_name = vs_table_name;
+		 -- 해당 테이블이 없으면 빠져나감
+		EXCEPTION WHEN no_data_found THEN 
+			dbms_output.put_line(vs_table_name || '라는 테이블이 존재하지 않습니다.');
+			RETURN;
+		END;
+	
+		 -- 테이블명 출력
+		dbms_output.put_line('---------------------------------------------------');
+		dbms_output.put_line('테이블: ' || vs_table_name || ' , 소유자: ' || vs_owner);
+		dbms_output.put_line('---------------------------------------------------');
+	
+		 -- 컬럼 정보 검색 및 출력
+		FOR c_cur IN (
+			/*SELECT column_name, data_type, data_length, nullable, data_default
+			FROM ALL_TAB_COLS 
+			WHERE table_name = vs_table_name
+			ORDER BY column_id*/
+			SELECT 
+				  atc.OWNER 
+				, atc.column_name
+				, atc.data_type
+				, atc.data_length
+				, atc.nullable
+				, atc.data_default
+				, ai.INDEX_NAME
+			FROM 
+				ALL_TAB_COLS atc
+			INNER JOIN 
+				ALL_INDEXES ai
+				ON atc.table_name = ai.table_name
+				AND atc.OWNER = ai.OWNER 
+			WHERE atc.table_name = UPPER('departments') 
+			ORDER BY atc.column_id
+		)
+		LOOP
+			 -- 컬럼 정보를 출력한다.
+			vs_columns := rpad(c_cur.column_name, 20) || rpad(c_cur.data_type, 15)
+							|| rpad(c_cur.data_length, 5)
+							|| rpad(c_cur.nullable, 2) || rpad(nvl(c_cur.data_default, ' '), 10)
+							|| rpad(c_cur.INDEX_NAME, 15);
+			dbms_output.put_line(vs_columns);
+		END LOOP;		
+	END table_layout_prc;
+END my_util_pkg;
+
+BEGIN 
+	my_util_pkg.program_search_prc('departments');
+END;
+
+SELECT name, TYPE, line, text
+FROM user_source
+WHERE text LIKE upper('%departments%')
+OR 	  text LIKE lower('%departments%')
+ORDER BY name, TYPE, line
+;
+
+SELECT rpad(' ', 15)
+	|| rpad('test2', 15) FROM dual ;
+
+BEGIN 
+	my_util_pkg.object_search_prc('departments');
+END;
+
+SELECT name, TYPE, referenced_name
+FROM USER_DEPENDENCIES 
+WHERE referenced_name LIKE UPPER('departments') 
+ORDER BY name, TYPE
+;
+
+BEGIN 
+	my_util_pkg.table_layout_prc('departments');
+END;
+
+SELECT 
+	  atc.OWNER 
+	, atc.column_name
+	, atc.data_type
+	, atc.data_length
+	, atc.nullable
+	, atc.data_default
+	, ai.INDEX_NAME
+FROM 
+	ALL_TAB_COLS atc
+INNER JOIN 
+	ALL_INDEXES ai
+	ON atc.table_name = ai.table_name
+	AND atc.OWNER = ai.OWNER 
+WHERE atc.table_name = UPPER('departments') 
+AND atc.OWNER = 'ORA_USER'
+ORDER BY atc.column_id
+;
+
+SELECT * FROM ALL_INDEXES ;
+
+SELECT column_name, data_type, data_length, nullable, data_default
+FROM ALL_TAB_COLS 
+WHERE table_name = UPPER('departments') 
+ORDER BY column_id
+;
+
+SELECT owner
+FROM ALL_TABLES 
+WHERE table_name = UPPER('departments') ;
