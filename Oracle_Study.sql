@@ -7422,18 +7422,39 @@ END;
 
  -- 나만의 유틸리티 프로그램
 CREATE OR REPLACE PACKAGE my_util_pkg IS 
-	 -- 프로그램 소스 검색 프로시저
+	 -- 1. 프로그램 소스 검색 프로시저
 	PROCEDURE program_search_prc(ps_src_text IN varchar2);
 
-	 -- 객체 검색 프로시저
+	 -- 2. 객체 검색 프로시저
 	PROCEDURE object_search_prc(ps_obj_name IN varchar2);
 
-	 -- 테이블 Layout 출력
+	 -- 3. 테이블 Layout 출력
 	PROCEDURE table_layout_prc(ps_table_name IN varchar2);
+
+	 -- 4. 컬럼 값을 세로로 출력
+	PROCEDURE print_col_value_prc(ps_query IN varchar2);
+
+	 -- 이메일 전송과 관련된 패키지 상수
+	pv_host varchar2(10)   := 'localhost';			-- SMTP 서버명
+	pn_port NUMBER 		   := 25;					-- 포트번호
+	pv_domain varchar2(30) := 'hbchoi.mydns.jp';	-- 도메인명
+	
+	pv_boundary varchar2(50)  := 'DIF0JSLKDWFEF0.WEF0WJF0WE';	-- boundary text
+	pv_directory varchar2(50) := 'SMTP_FILE';	-- 파일이 있는 디렉토리명
+	
+	 -- 5. 이메일 전송
+	PROCEDURE email_send_prc(
+		ps_from    IN varchar2,
+		ps_to 	   IN varchar2,
+		ps_subject IN varchar2,
+		ps_body    IN varchar2,
+		ps_content IN varchar2 DEFAULT 'text/plain;',	-- 해당 문서를 플레인 텍스트로 만들어, HTML 태그까지 모두 보여주는 데이터 타입
+		ps_file_nm IN varchar2
+	);
 END my_util_pkg;
 
 CREATE OR REPLACE PACKAGE BODY my_util_pkg IS 
-	 -- 프로그램 소스 검색 프로시저
+	 -- 1. 프로그램 소스 검색 프로시저
 	PROCEDURE program_search_prc(ps_src_text IN varchar2)
 	IS 
 		vs_search varchar2(100);
@@ -7459,7 +7480,7 @@ CREATE OR REPLACE PACKAGE BODY my_util_pkg IS
 		
 	END program_search_prc;
 
- 	 -- 객체 검색 프로시저
+ 	 -- 2. 객체 검색 프로시저
 	PROCEDURE object_search_prc(ps_obj_name IN varchar2)
 	IS 
 		vs_search varchar2(100);
@@ -7481,7 +7502,7 @@ CREATE OR REPLACE PACKAGE BODY my_util_pkg IS
 		END LOOP;
 	END object_search_prc;
 
-	 -- 테이블 Layout 출력
+	 -- 3. 테이블 Layout 출력
 	PROCEDURE table_layout_prc(ps_table_name IN varchar2)
 	IS
 		vs_table_name varchar2(50) := upper(ps_table_name);
@@ -7537,6 +7558,154 @@ CREATE OR REPLACE PACKAGE BODY my_util_pkg IS
 			dbms_output.put_line(vs_columns);
 		END LOOP;		
 	END table_layout_prc;
+
+	 -- 4. 컬럼 값을 세로로 출력
+	PROCEDURE print_col_value_prc(ps_query IN varchar2)
+	IS 
+		l_theCursor   integer DEFAULT dbms_sql.open_cursor;	-- 커서를 연다
+		l_columnValue varchar2(4000);
+		l_status	  integer;
+		l_descTbl	  dbms_sql.desc_tab;
+		l_colCnt	  NUMBER;
+	BEGIN 
+		 -- 쿼리 구문이 ps_query 매개변수에 들어오므로 이를 파싱한다.
+		dbms_sql.parse(l_theCursor, ps_query, dbms_sql.native);
+	
+		 -- DESCRIBE_column 프로시저: 커서에 대한 컬럼 정보를 DBMS_SQL.DESC_TAB형 변수에 넣는다.
+		dbms_sql.DESCRIBE_columns(l_theCursor, l_colCnt, l_descTbl);
+	
+		 -- 선택된 컬럼 개수만큼 루프를 돌며 DEFINE_COLUMN 프로시저를 호출해 컬럼을 정의한다.
+		FOR i IN 1..l_colCnt
+		LOOP 
+			dbms_sql.DEFINE_COLUMN(l_theCursor, i, l_columnValue, 4000);
+		END LOOP;
+		
+		 -- 실행
+		l_status := dbms_sql.execute(l_theCursor);
+	
+		WHILE ( dbms_sql.fetch_rows(l_theCursor) > 0 )
+		LOOP
+			FOR i IN 1..l_colCnt
+			LOOP
+				dbms_sql.column_value(l_theCursor, i, l_columnValue);
+				dbms_output.put_line(rpad(l_descTbl(i).col_name, 30) || ': ' || l_columnValue);
+			END LOOP;
+			dbms_output.put_line('------------------------');
+		END LOOP;
+		
+		dbms_sql.close_cursor(l_theCursor);
+	END print_col_value_prc;
+
+	 -- 5. 이메일 전송
+	PROCEDURE email_send_prc(
+		ps_from    IN varchar2,	-- 보내는 사람
+		ps_to 	   IN varchar2,	-- 받는 사람
+		ps_subject IN varchar2,	-- 제목
+		ps_body    IN varchar2,	-- 본문
+		ps_content IN varchar2 DEFAULT 'text/plain;',	-- 해당 문서를 플레인 텍스트로 만들어, HTML 태그까지 모두 보여주는 데이터 타입
+		ps_file_nm IN varchar2	-- 첨부파일
+	)
+	IS
+		vc_con utl_smtp.CONNECTION;
+	
+		v_bfile 	  bfile;		-- 파일을 담을 변수
+		vn_bfile_size NUMBER := 0;	-- 파일 크기
+		
+		v_temp_blob  blob 	:= empty_blob;	-- 파일을 옮겨담을 blob 타입 변수
+		vn_blob_size NUMBER := 0;			-- BLOB 변수 크기
+		vn_amount 	 NUMBER := 54;			-- 54 단위로 파일을 잘라 메일에 붙이기 위함
+		v_tmp_raw 	 raw(54);				-- 54 단위로 자른 파일내용이 담긴 RAW 타입 변수
+		vn_pos 		 NUMBER := 1;			-- 파일 위치를 담는 변수
+	BEGIN 
+		vc_con := utl_smtp.open_connection(pv_host, pn_port);
+		utl_smtp.helo(vc_con, pv_domain);	-- HELO
+		utl_smtp.mail(vc_con, ps_from);		-- 보내는 사람
+		utl_smtp.rcpt(vc_con, ps_to);		-- 받는 사람
+		
+		utl_smtp.open_data(vc_con);		-- 메일 본문 작성 시작
+		utl_smtp.write_data(vc_con, 'MIME-Version: 1.0' || utl_tcp.crlf);	-- MIME 버전
+		utl_smtp.write_data(vc_con, 'Content-Type: multipart/mixed; boundary="' 
+							|| pv_boundary || '"' || utl_tcp.crlf);
+		utl_smtp.write_raw_data(vc_con, utl_raw.cast_to_raw('From: ' || ps_from || utl_tcp.crlf));
+		utl_smtp.write_raw_data(vc_con, utl_raw.cast_to_raw('To: ' || ps_to || utl_tcp.crlf));
+		utl_smtp.write_raw_data(vc_con, utl_raw.cast_to_raw('Subject: ' || ps_subject || utl_tcp.crlf));
+		utl_smtp.write_data(vc_con, utl_tcp.crlf);
+	
+		 -- 메일 본문
+		utl_smtp.write_data(vc_con, '--' || pv_boundary || utl_tcp.crlf);
+		utl_smtp.write_data(vc_con, 'Content-Type: ' || ps_content || utl_tcp.crlf);
+		utl_smtp.write_data(vc_con, 'charset=euc-kr' || utl_tcp.crlf);
+		utl_smtp.write_data(vc_con, utl_tcp.crlf);
+		utl_smtp.write_raw_data(vc_con, utl_raw.cast_to_raw(ps_body || utl_tcp.crlf));
+		utl_smtp.write_data(vc_con, utl_tcp.crlf);
+	
+		 -- 첨부파일이 있다면
+		IF ps_file_nm IS NOT NULL THEN 
+			utl_smtp.write_data(vc_con, '--' || pv_boundary || utl_tcp.crlf);
+			utl_smtp.write_data(vc_con, 'Content-Type: application/octet-stream; name ="' 
+								|| ps_file_nm || '"' || utl_tcp.crlf);
+			utl_smtp.write_data(vc_con, 'Content-Transfer-Encoding: base64' || utl_tcp.crlf);
+			utl_smtp.write_data(vc_con, 'Content-Disposition: attachment; filename="' 
+								|| ps_file_nm || '"' || utl_tcp.crlf);
+			utl_smtp.write_data(vc_con, utl_tcp.crlf);
+		
+			 -- 파일 처리 시작
+			 -- 파일을 읽어 BFILE 변수인 v_bfile에 담는다.
+			v_bfile := bfilename(pv_directory, ps_file_nm);
+			 -- v_bfile 담은 파일을 읽기 전용으로 연다.
+			dbms_lob.open(v_bfile, dbms_lob.lob_readonly);
+			 -- v_bfile에 담긴 파일의 크기를 가져온다.
+			vn_bfile_size := dbms_lob.getlength(v_bfile);
+		
+			 -- v_bfile를 BLOB 변수인 v_temp_blob에 담기 위해 초기화
+			dbms_lob.createtemporary(v_temp_blob, true);
+			 -- v_bfile에 담긴 파일을 v_temp_blob로 옮긴다.
+			dbms_lob.loadfromfile(v_temp_blob, v_bfile, vn_bfile_size);
+			 -- v_temp_blob의 크기를 구한다.
+			vn_blob_size := dbms_lob.getlength(v_temp_blob);
+		
+			 -- vn_pos 초깃값은 1, v_temp_blob 크기보다 작은 경우 루프
+			WHILE vn_pos < vn_blob_size
+			LOOP
+				-- v_temp_blob에 담긴 파일을 vn_amount(54)씩 잘라 v_tmp_raw에 담는다.
+				dbms_lob.read(v_temp_blob, vn_amount, vn_pos, v_tmp_raw);
+				 -- 잘라낸 v_tmp_raw를 메일에 첨부한다.
+				utl_smtp.write_raw_data(vc_con, utl_encode.base64_encode(v_tmp_raw));
+				utl_smtp.write_data(vc_con, utl_tcp.crlf);
+			
+				v_tmp_raw := NULL;
+				vn_pos := vn_pos + vn_amount;
+			END LOOP;
+			
+			dbms_lob.freetemporary(v_temp_blob);	-- v_temp_blob 메모리 해제
+			dbms_lob.fileclose(v_bfile);	-- v_bfile 닫기
+		END IF;	-- 첨부파일 처리 종료
+		
+		 -- 맨 마지막 boundary에는 앞과 뒤에 '--'를 반드시 붙여야 한다.
+		utl_smtp.write_data(vc_con, '--' || pv_boundary || '--' || utl_tcp.crlf);
+	
+		utl_smtp.close_data(vc_con);	-- 메일 본문 작성 종료
+		utl_smtp.quit(vc_con);			-- 메일 세션 종료
+		
+	EXCEPTION 
+	WHEN utl_smtp.invalid_operation THEN 
+		 -- UTL_SMTP를 사용하는 메일에서 잘못된 작업입니다.
+		dbms_output.put_line(' Invalid Operation in Mail attempt using UTL_SMTP.');
+		dbms_output.put_line(sqlerrm);
+		utl_smtp.quit(vc_con);
+	WHEN utl_smtp.transient_error THEN 
+		 -- 일시적인 전자 메일 문제 - 다시 시도
+		dbms_output.put_line(' Temporary e-mail issue - try again');
+		utl_smtp.quit(vc_con);
+	WHEN utl_smtp.permanent_error THEN 
+		 -- 영구 오류가 발생했습니다.
+		dbms_output.put_line(' Permanent Error Encountered.');
+		dbms_output.put_line(sqlerrm);
+		utl_smtp.quit(vc_con);
+	WHEN OTHERS THEN 
+		dbms_output.put_line(sqlerrm);
+		utl_smtp.quit(vc_con);
+	END email_send_prc;
 END my_util_pkg;
 
 BEGIN 
@@ -7597,3 +7766,34 @@ ORDER BY column_id
 SELECT owner
 FROM ALL_TABLES 
 WHERE table_name = UPPER('departments') ;
+
+
+ -- 230625
+BEGIN 
+	my_util_pkg.print_col_value_prc('select * from departments where rownum < 3');
+END;
+
+ -- 메일 전송
+DECLARE 
+	vv_html varchar2(1000);
+BEGIN 
+	vv_html := '<HTML><HEAD>
+	<TITLE>HTML 테스트</TITLE>
+	</HEAD>
+	<BODY>
+	<p>이 메일은 <b>HTML</b><i>버전</i>으로</p>
+	<p><strong>my_util_pkg</strong> 패키지의 email_send_prc 프로시저를 사용해 보낸 메일입니다. </p>
+	</BODY>
+	</HTML>';
+
+	 -- 이메일 전송
+	my_util_pkg.email_send_prc(
+		ps_from    => 'hbchoi@hbchoi.mydns.jp',
+		ps_to 	   => 'hbchoi@hbchoi.mydns.jp',
+		ps_subject => '테스트 메일',
+		ps_body    => vv_html,
+		ps_content => 'text/html;',
+		ps_file_nm => '12.jpg'
+	);
+END;
+
