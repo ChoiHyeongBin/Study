@@ -1,71 +1,48 @@
 package codingTest;
 
-import java.util.Stack;
+import java.util.HashSet;
+import java.util.Set;
 
 public class ProgrammersCodingTest {
 
     public static void main(String[] args) {
-//    	String str = "[](){}";
-    	String str = "}]()[{";
+    	int[] elements = new int[] {7,9,1,1,4};
     	
-    	solution(str);
+    	solution(elements);
     }
 	
-    // LV2 괄호 회전하기
-    public static int solution(String s) {
+    // LV2 연속 부분 수열 합의 개수
+    public static int solution(int[] elements) {
         int answer = 0;
-//        String temp = "";
+        // 1.7 부터는 앞에 선언된 타입으로 컴파일러에서 추측이 가능 하기 때문에 뒤에 생성자에서 제네릭 생략 가능하다. 
+        // 이걸 다이아몬드 표현이라고 한다.
+        Set<Integer> tempSet = new HashSet<Integer>();
         
-        for (int i = 0; i < s.length(); i++) {
-        	System.out.println(s);
+        // 연속적인 수
+        for (int i = 1; i <= elements.length; i++) {
+        	// 배열 자릿수
+        	for (int j = 0; j < elements.length; j++) {
+        		int sum = 0;
+
+        		for (int k = 0; k < i; k++) {
+        			if (j + k > elements.length - 1) {
+        				sum += elements[j + k - elements.length];
+        			} else {
+        				sum += elements[j + k];
+        			}
+                }
+        		
+        		tempSet.add(sum);
+        		System.out.println("sum: " + sum);
+            }
         	
-        	System.out.println(check(s));;
-        	
-        	if (check(s))	answer++;
-        	
-//        	System.out.println(s.matches("[\\[\\]]"));
-        	
-        	/*String fileName = "[ㄴ]";
-        	boolean result = fileName.matches("[\\[\\]]*");
-        	System.out.println(result);*/
-        	
-        	/*Pattern pattern = Pattern.compile(".*" + "[]" + ".*");
-        	Matcher matcher = pattern.matcher(s);
-        	System.out.println(matcher);*/
-        	
-        	s = s.substring(1, s.length()) + s.charAt(0);
+        	System.out.println();
         }
         
-        System.out.println("answer: " + answer);
+        System.out.println("tempSet: " + tempSet.size());
+        
+        answer = tempSet.size();
         return answer;
     }
-
-    public static boolean check(String input) {
-		Stack<Character> stack = new Stack<>();
-		for (int i=0; i<input.length(); i++) {
-			if (isOpen(input.charAt(i))) {
-				stack.push(input.charAt(i));
-			} else {
-				// isClose()에 가장 상단의 값 가져가고, 맞으면 가장 최근꺼 삭제
-				if (!stack.empty() && isClose(input.charAt(i), stack.peek())) stack.pop();
-				else return false;
-			}
-		}
-		// 스택에 데이터가 있으면 괄호 쌍이 아니라는 뜻임
-		if (stack.empty()) return true;
-		return false;
-	}
-    
-    public static boolean isOpen(char input) {
-		if (input == '{' || input == '[' || input == '(') return true;
-		else return false;
-	}
-	
-	public static boolean isClose(char input, char top) {
-		if (input == '}' && top == '{') return true;
-		else if (input == ']' && top == '[') return true;
-		else if (input == ')' && top == '(') return true;
-		else return false;
-	}
 	
 }
