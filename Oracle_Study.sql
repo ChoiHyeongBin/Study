@@ -7451,6 +7451,22 @@ CREATE OR REPLACE PACKAGE my_util_pkg IS
 		ps_content IN varchar2 DEFAULT 'text/plain;',	-- 해당 문서를 플레인 텍스트로 만들어, HTML 태그까지 모두 보여주는 데이터 타입
 		ps_file_nm IN varchar2
 	);
+
+	 -- 6. 비밀번호 생성
+	FUNCTION fn_create_pass(ps_input IN varchar2, ps_add IN varchar2)
+	RETURN raw;
+
+	 -- 7. 비밀번호 체크
+	FUNCTION fn_check_pass(ps_input IN varchar2, ps_add IN varchar2, p_raw IN raw)
+	RETURN varchar2;
+
+	 -- 8. 암호화 함수
+	FUNCTION fn_encrypt(ps_input_string IN varchar2)
+	RETURN raw;
+
+	 -- 9. 복호화 함수
+	FUNCTION fn_decrypt(prw_encrypt IN raw)
+	RETURN varchar2;
 END my_util_pkg;
 
 CREATE OR REPLACE PACKAGE BODY my_util_pkg IS 
@@ -7706,6 +7722,111 @@ CREATE OR REPLACE PACKAGE BODY my_util_pkg IS
 		dbms_output.put_line(sqlerrm);
 		utl_smtp.quit(vc_con);
 	END email_send_prc;
+
+	 -- 6. 비밀번호 생성
+	FUNCTION fn_create_pass(ps_input IN varchar2, ps_add IN varchar2)
+		RETURN raw
+	IS 
+		v_raw 		   raw(32747);
+		v_key_raw 	   raw(32747);
+		v_input_string varchar2(100);
+	BEGIN 
+		 -- 키 값을 가진 ch19_wrap_pkg 패키지의 pv_key_string 상수를 가져와 RAW 타입으로 변환한다.
+		v_key_raw := utl_raw.cast_to_raw(ch19_wrap_pkg.pv_key_string);
+	
+		 -- 좀더 보안을 강화하기 위해 두 개의 입력 매개변수와 특수문자인 $%를 조합해 MAC 함수의 첫번째 매개변수로 넘긴다.
+		v_input_string := ps_input || '$%' || ps_add;
+	
+		 -- MAC 함수를 사용해 입력 문자열을 RAW 타입으로 변환한다.
+		v_raw := dbms_crypto.mac(src => utl_raw.cast_to_raw(v_input_string)
+								,typ => dbms_crypto.hmac_sh1	-- MD5보다 나은 버전 (MD5: 암호화는 가능하지만, 복호화가 매우 어렵)
+								,KEY => v_key_raw);
+							
+		RETURN v_raw;
+	END fn_create_pass;
+
+	 -- 7. 비밀번호 체크
+	FUNCTION fn_check_pass(ps_input IN varchar2, ps_add IN varchar2, p_raw IN raw)
+		RETURN varchar2
+	IS
+		v_raw 		   raw(32747);
+		v_key_raw 	   raw(32747);
+		v_input_string varchar2(100);
+	
+		v_rtn varchar2(10) := 'N';
+	BEGIN 
+		 -- 키 값을 가진 ch19_wrap_pkg 패키지의 pv_key_string 상수를 가져와 RAW 타입으로 변환한다.
+		v_key_raw := utl_raw.cast_to_raw(ch19_wrap_pkg.pv_key_string);
+	
+		 -- 좀더 보안을 강화하기 위해 두 개의 입력 매개변수와 특수문자인 $%를 조합해 MAC 함수의 첫번째 매개변수로 넘긴다.
+		v_input_string := ps_input || '$%' || ps_add;
+	
+		 -- MAC 함수를 사용해 입력 문자열을 RAW 타입으로 변환한다.
+		v_raw := dbms_crypto.mac(src => utl_raw.cast_to_raw(v_input_string)
+								,typ => dbms_crypto.hmac_sh1	-- MD5보다 나은 버전 (MD5: 암호화는 가능하지만, 복호화가 매우 어렵)
+								,KEY => v_key_raw);
+							
+		IF v_raw = p_raw THEN 
+			v_rtn := 'Y';
+		ELSE 
+			v_rtn := 'N';
+		END IF;
+	
+		RETURN v_rtn;
+	END fn_check_pass;
+
+	 -- 8. 암호화 함수
+	FUNCTION fn_encrypt(ps_input_string IN varchar2)
+		RETURN raw
+	IS
+		encrypted_raw raw(32747);
+		v_key_raw raw(32747);			-- 암호화 키
+		encryption_type pls_integer;	-- 암호화 슈트
+	BEGIN 
+		 -- 암호화 키 값을 가져온다.
+		v_key_raw := ch19_wrap_pkg.key_bytes_raw;
+	
+		 -- 암호화 슈트 설정
+		encryption_type := dbms_crypto.encrypt_aes256 + -- 256비트 키를 사용한 AES 암호화
+						   dbms_crypto.chain_cbc + 		-- CBC 모드
+						   dbms_crypto.pad_pkcs5;		-- pkcs5로 이루어진 패딩
+						   
+		encrypted_raw := dbms_crypto.encrypt(
+			src => utl_I18N.string_to_raw(ps_input_string, 'AL32UTF8'),
+			typ => encryption_type,
+			KEY => v_key_raw
+		);
+		
+		RETURN encrypted_raw;
+	END fn_encrypt;
+
+	 -- 9. 복호화 함수
+	FUNCTION fn_decrypt(prw_encrypt IN raw)
+		RETURN varchar2
+	IS
+		vs_return varchar2(100);
+		v_key_raw raw(32747);			-- 암호화 키
+		encryption_type pls_integer;	-- 암호화 슈트
+		decrypted_raw raw(2000);		-- 복호화 데이터
+	BEGIN 
+		 -- 암호화 키 값을 가져온다.
+		v_key_raw := ch19_wrap_pkg.key_bytes_raw;
+	
+		 -- 암호화 슈트 설정
+		encryption_type := dbms_crypto.encrypt_aes256 + -- 256비트 키를 사용한 AES 암호화
+						   dbms_crypto.chain_cbc + 		-- CBC 모드
+						   dbms_crypto.pad_pkcs5;		-- pkcs5로 이루어진 패딩
+						   
+		decrypted_raw := dbms_crypto.decrypt(
+			src => prw_encrypt,
+			typ => encryption_type,
+			KEY => v_key_raw
+		);
+	
+		vs_return := utl_I18N.raw_to_char(decrypted_raw, 'AL32UTF8');
+	
+		RETURN vs_return;
+	END fn_decrypt;
 END my_util_pkg;
 
 BEGIN 
@@ -7797,3 +7918,85 @@ BEGIN
 	);
 END;
 
+ -- 230626
+ -- 비밀번호를 담을 테이블
+CREATE TABLE ch19_user (
+	user_id   varchar2(50),		-- 사용자아이디
+	user_name varchar2(100),	-- 사용자명
+	pass 	  raw(2000)			-- 비밀번호
+);
+
+INSERT INTO ch19_user(user_id, user_name)
+VALUES ('gdhong', '홍길동');
+
+SELECT * FROM ch19_user ;
+
+DECLARE 
+	vs_pass varchar2(20);
+BEGIN 
+	vs_pass := 'HONG';
+
+	UPDATE ch19_user
+	SET pass = my_util_pkg.fn_create_pass(vs_pass, user_id)
+	WHERE user_id = 'gdhong';
+
+	COMMIT;
+END;
+
+DECLARE 
+	vs_pass varchar2(20);
+	v_raw 	raw(32747);
+BEGIN 
+	vs_pass := 'HONG';
+
+	SELECT pass
+	INTO v_raw
+	FROM ch19_user
+	WHERE user_id = 'gdhong';
+
+	IF my_util_pkg.fn_check_pass(vs_pass, 'gdhong', v_raw) = 'Y' THEN 
+		dbms_output.put_line('아이디와 비밀번호가 동일합니다.');
+	ELSE 
+		dbms_output.put_line('아이디와 비밀번호가 다릅니다.');
+	END IF;
+END;
+
+ -- 암호화 키
+DECLARE 
+	vv_ddl varchar2(1000);	-- 패키지 소스를 저장하는 변수
+BEGIN 
+	vv_ddl := 'create or replace package ch19_wrap_pkg is 
+			   pv_key_string constant varchar2(30) := ''OracleKey'';
+			   key_bytes_raw constant raw(32) 
+			  := ''1181C249F0F9C3343E8FF2BCCF370D3C9F70E973531DEC1C5066B54F27A507DB'';
+			  END ch19_wrap_pkg;';
+	
+	dbms_ddl.create_wrapped(vv_ddl);
+
+EXCEPTION WHEN OTHERS THEN 
+	dbms_output.put_line(sqlerrm);
+END;
+
+ALTER TABLE CH19_USER ADD phone_number raw(2000);
+ 
+SELECT utl_raw.cast_to_varchar2(PHONE_NUMBER) FROM ch19_user ;
+
+BEGIN 
+	UPDATE ch19_user
+	SET PHONE_NUMBER = my_util_pkg.fn_encrypt('010-0000-0001')
+	WHERE USER_ID = 'gdhong';
+END;
+
+ -- 복호화
+DECLARE
+	v_raw raw(2000);
+	vs_phone_number varchar2(50);
+BEGIN 
+	SELECT PHONE_NUMBER
+	INTO v_raw
+	FROM ch19_user
+	WHERE user_id = 'gdhong';
+
+	vs_phone_number := my_util_pkg.fn_decrypt(v_raw);
+	dbms_output.put_line('전화번호: ' || vs_phone_number);
+END;
