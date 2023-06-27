@@ -8,38 +8,20 @@
 
 	<script type="text/javascript">
 
-		let citations = [3, 0, 6, 1, 5];
-// 		let citations = [47, 42, 32, 28, 24, 22, 17, 15, 10, 10, 8];
+		let n 	  = 4;
+		let left  = 7;
+		let right = 14;
 	
-		solution(citations);
+		solution(n, left, right);
 	
-		// LV2 H-Index
-		function solution(citations) {
-			let answer = 0;
+		// LV2 n^2 배열 자르기
+		function solution(n, left, right) {
+		    const answer = [];
 		    
-		    citations.sort((a, b) => b - a);
-		    console.log("citations: ", citations);
-
-		    /* *테스트케이스 통과못함
-		    for (let i = 0; i < citations.length; i++) {
-		    	let bigArr = citations.filter((item) => item >= citations[i]);
-		    	console.log("bigArr.length: ", bigArr.length);
-		    	
-		    	let smallArr = citations.filter((item) => item <= citations[i]);
-		    	console.log("smallArr.length: ", smallArr.length);
-		    	
-		    	console.log("bigArr == smallArr: ", bigArr.length === smallArr.length);
-		    	if (bigArr.length === smallArr.length) {
-		    		answer = bigArr.length;
-		    		break;
-		    	}
-		    }
-		     */
-		    
-		    for (let i = 0; i < citations.length; i++) {
-		        if (i < citations[i]) {
-		        	answer++;
-		        }
+		    for (let i = left; i <= right; i++) {
+		    	let x = parseInt(i / n);	// 행축(x)
+		    	let y = i % n;				// 열축(y)
+		    	answer.push(Math.max(x, y) + 1);
 		    }
 		    
 		    console.log("answer: ", answer);
