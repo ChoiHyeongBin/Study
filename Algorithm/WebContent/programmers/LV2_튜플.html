@@ -1,0 +1,66 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<title>Insert title here</title>
+</head>
+<body>
+
+	<script type="text/javascript">
+
+		//const s = "{{4,2,3},{3},{2,3,4,1},{2,3}}";
+		const s = "{{1,2,3},{2,1},{1,2,4,3},{2}}";
+	
+		solution(s);
+	
+		function solution(s) {
+		    var answer = [];
+		    var tempArr = [];
+		    let set = new Set();
+		    
+		    s = s.replace(/\{/g, '');
+		    console.log(s);
+		    s = s.split('}');
+		    console.log(s);
+		    
+		    for (let i = 0; i < s.length; i++) {
+		    	let arr = s[i].split(",");
+		    	let arr2 = [];
+		    	
+		    	for (let i = 0; i < arr.length; i++) {
+		    		if (!isNaN(arr[i]) && arr[i] !== '') {
+		    			arr2.push(arr[i]);
+		    		}
+		    	}
+		    	
+		    	console.log("arr2: ", arr2);
+		    	if (arr2.length !== 0) {
+		    		tempArr.push(arr2);
+		    	}
+		    }
+		    
+		    console.log("tempArr: ", tempArr);
+		    
+		    tempArr.sort((a, b) => a.length - b.length);	// 값을 비교하여 순서 정렬
+		    console.log("tempArr: ", tempArr);
+		    
+		    for (let i = 0; i < tempArr.length; i++) {
+		    	console.log("tempArr: ", tempArr[i]);
+		    	
+		    	for (let j = 0; j < tempArr[i].length; j++) {
+		    		set.add(Number(tempArr[i][j]));
+		    	}
+		    }
+		    
+		    console.log("set: ", set);
+		    console.log("set: ", [...set]);
+		    
+		    answer = [...set];
+		    console.log("answer: ", answer);
+		    
+		    return answer;
+		}
+		
+    </script>
+</body>
+</html>
